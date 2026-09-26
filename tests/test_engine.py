@@ -56,5 +56,52 @@ class TestOmniForgeEngine(unittest.TestCase):
         self.assertIn("Leo", script_8yo)
         self.assertIn("space", script_8yo)
 
+    def test_bot_interactive_keyboards(self):
+        """Verifies all interactive keyboards generate valid Telegram buttons under 64 bytes."""
+        kb_lang = self.bot._get_story_lang_keyboard()
+        for row in kb_lang.inline_keyboard:
+            for btn in row:
+                self.assertIsNotNone(btn.callback_data)
+                self.assertLessEqual(len(btn.callback_data.encode("utf-8")), 64)
+
+        for lang in ("id", "en"):
+            kb_child = self.bot._get_child_keyboard(lang)
+            for row in kb_child.inline_keyboard:
+                for btn in row:
+                    self.assertIsNotNone(btn.callback_data)
+                    self.assertLessEqual(len(btn.callback_data.encode("utf-8")), 64)
+
+            for name, age in [("Maya", 2), ("Leo", 8)]:
+                kb_theme = self.bot._get_theme_keyboard(lang, name, age)
+                for row in kb_theme.inline_keyboard:
+                    for btn in row:
+                        self.assertIsNotNone(btn.callback_data)
+                        self.assertLessEqual(
+                            len(btn.callback_data.encode("utf-8")),
+                            64,
+                            f"Callback data too long: {btn.callback_data}"
+                        )
+
+        kb_morning = self.bot._get_morning_keyboard()
+        for row in kb_morning.inline_keyboard:
+            for btn in row:
+                self.assertIsNotNone(btn.callback_data)
+                self.assertLessEqual(len(btn.callback_data.encode("utf-8")), 64)
+
+    def test_session_storage(self):
+        """Verifies session store assigns IDs and preserves cartridge payload."""
+        sess_id = self.bot._store_session({"cmd": "story", "payload": {"name": "Maya", "age": 2}})
+        self.assertTrue(sess_id.startswith("s_"))
+        self.assertIn(sess_id, self.bot.sessions)
+        self.assertEqual(self.bot.sessions[sess_id]["cmd"], "story")
+        self.assertEqual(self.bot.sessions[sess_id]["payload"]["name"], "Maya")
+
+    def test_indonesian_language_detection(self):
+        """Verifies language identification logic for Indonesian stories."""
+        cartridge = BedtimeStoryCartridge()
+        self.assertTrue(cartridge._is_indonesian("id", "awan", "kelembutan"))
+        self.assertTrue(cartridge._is_indonesian(None, "hutan ajaib", "kebaikan"))
+        self.assertFalse(cartridge._is_indonesian("en", "forest", "kindness"))
+
 if __name__ == "__main__":
     unittest.main()

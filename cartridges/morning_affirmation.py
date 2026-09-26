@@ -52,12 +52,19 @@ class MorningAffirmationCartridge(BaseCartridge):
         raw_voice_file = OUTPUT_DIR / f"voice_{safe_name}_{self.name}_{lang_tag}.mp3"
         final_file = OUTPUT_DIR / f"{self.name}_{safe_name}_{lang_tag}.mp3"
 
+        on_progress = payload.get("on_progress")
+        if on_progress:
+            await on_progress("🎙️ Merekam naskah afirmasi positif..." if is_id else "🎙️ Recording positive affirmation voiceover...")
+
         voice_engine = VoiceSynthesizer(profile_name=voice_profile)
         await voice_engine.synthesize(
             text=script_text,
             output_path=str(raw_voice_file),
             profile_name=voice_profile
         )
+
+        if on_progress:
+            await on_progress("🎵 Menggabungkan musik pengiring ceria..." if is_id else "🎵 Mixing uplifting morning soundtrack...")
 
         mixer = MediaMixer()
         mixer.mix_voice_and_music(
