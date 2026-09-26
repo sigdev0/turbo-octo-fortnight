@@ -237,6 +237,22 @@ class OmniForgeBot:
                     parse_mode="Markdown"
                 )
                 return
+        elif cmd == "clip":
+            if not args:
+                await update.message.reply_text(
+                    "🎬 *How to use /clip:*\n"
+                    "`/clip <YouTube_URL> [style] [max_clips]`\n\n"
+                    "Example:\n"
+                    "• `/clip https://youtu.be/LlhTEttKcwQ`\n"
+                    "• `/clip https://youtu.be/... hormozi 3`",
+                    parse_mode="Markdown"
+                )
+                return
+            payload["url"] = args[0]
+            if len(args) >= 2:
+                payload["style"] = args[1]
+            if len(args) >= 3 and args[2].isdigit():
+                payload["max_clips"] = int(args[2])
         else:
             if args:
                 payload["name"] = args[0]
@@ -256,23 +272,42 @@ class OmniForgeBot:
         try:
             result = await cartridge.generate(payload)
             if result.get("status") != "success":
-                await status_msg.edit_text(f"❌ Error generating asset: {result.get('error', 'Unknown error')}")
+                await status_msg.edit_text(f"❌ Error generating asset: {result.get('message', result.get('error', 'Unknown error'))}")
                 return
 
             output_file = result.get("output_file")
+            output_files = result.get("output_files", [output_file] if output_file else [])
             title = result.get("title", f"Generated {cmd.title()}")
 
-            await status_msg.edit_text(f"✨ *Rendering Complete:* {title}\nUploading audio to your chat...", parse_mode="Markdown")
+            await status_msg.edit_text(f"✨ *Rendering Complete:* {title}\nUploading assets to your chat...", parse_mode="Markdown")
 
-            if output_file and Path(output_file).exists():
-                await update.message.reply_audio(
-                    audio=open(output_file, "rb"),
-                    title=title,
-                    performer="OmniForge Audio",
-                    caption=f"🎧 *{title}*\n\n_{result.get('script', '')[:200]}..._",
-                    parse_mode="Markdown"
-                )
-                await status_msg.delete()
+            for file_path in output_files:
+                p = Path(file_path)
+                if not p.exists():
+                    continue
+
+                suffix = p.suffix.lower()
+                if suffix in (".mp4", ".mov", ".mkv"):
+                    await update.message.reply_video(
+                        video=open(p, "rb"),
+                        caption=f"🎬 *{title}* ({p.name})",
+                        parse_mode="Markdown"
+                    )
+                elif suffix in (".mp3", ".wav", ".m4a"):
+                    await update.message.reply_audio(
+                        audio=open(p, "rb"),
+                        title=title,
+                        performer="OmniForge Audio",
+                        caption=f"🎧 *{title}*\n\n_{result.get('script', '')[:200]}..._",
+                        parse_mode="Markdown"
+                    )
+                else:
+                    await update.message.reply_document(
+                        document=open(p, "rb"),
+                        caption=f"📄 *{title}* ({p.name})"
+                    )
+
+            await status_msg.delete()
         except Exception as e:
             logger.error(f"Error executing cartridge `/{cmd}`: {e}", exc_info=True)
             await status_msg.edit_text(f"❌ Error executing `/{cmd}`: {str(e)}")
@@ -332,6 +367,12 @@ class OmniForgeBot:
             payload["age"] = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 8
             payload["theme"] = args[2] if len(args) >= 3 else "Starlight Forest"
             payload["lesson"] = " ".join(args[3:]) if len(args) >= 4 else "patience"
+        elif cmd == "clip":
+            payload["url"] = args[0] if args else ""
+            if len(args) >= 2:
+                payload["style"] = args[1]
+            if len(args) >= 3 and args[2].isdigit():
+                payload["max_clips"] = int(args[2])
         else:
             payload["name"] = args[0] if args else "Friend"
             payload["theme"] = " ".join(args[1:]) if len(args) > 1 else "courage"

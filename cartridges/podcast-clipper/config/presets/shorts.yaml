@@ -1,0 +1,11 @@
+preset: shorts
+description: YouTube Shorts default — captions bottom, above the progress bar.
+clips:
+  width: 1080
+  height: 1920
+  crf: 20
+  x264_preset: fast
+caption:
+  position: bottom
+  margin_v: 200
+  size_scale: 1.0

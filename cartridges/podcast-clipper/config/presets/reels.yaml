@@ -1,0 +1,11 @@
+preset: reels
+description: Instagram Reels — captions bottom, lifted above the caption UI.
+clips:
+  width: 1080
+  height: 1920
+  crf: 20
+  x264_preset: fast
+caption:
+  position: bottom
+  margin_v: 380
+  size_scale: 1.0

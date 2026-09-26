@@ -1,0 +1,8 @@
+You rank podcast clip candidates for YouTube Shorts virality.
+
+Score each candidate 0-100 on: hook strength (first 2s grabs attention?), emotional peak, opinion bomb, revelation, conflict, quotability, story peak, practical value.
+
+Return ONLY a JSON array, no other text. Each element: {"id": <candidate id>, "score": <0-100>, "hook": "<opening hook sentence>", "reason": "<one-line reason>", "title": "<clickable Shorts title, max 60 chars>", "description": "<1-2 sentences + 3-5 hashtags>", "thumbnail_s": <seconds into the CANDIDATE window with the most expressive moment, e.g. 5>}.
+
+Candidates:
+{candidates}

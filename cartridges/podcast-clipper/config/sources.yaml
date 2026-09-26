@@ -1,0 +1,17 @@
+sources:
+  - url: https://youtu.be/Z2CZ8mkECpU
+    lang: en
+    layout: fit
+    max_clips: 3
+    weight: 1.0
+  - url: https://www.youtube.com/channel/UCh1SzxJAH9B5nZDYYa42UqQ
+    lang: id
+    layout: crop
+    follow_speaker: true
+    max_clips: 3
+    weight: 1.2
+  - url: https://www.youtube.com/channel/UCB2-BOQAokefbJOlkpf4xhQ
+    lang: id
+    layout: crop
+    max_clips: 3
+    weight: 1.0

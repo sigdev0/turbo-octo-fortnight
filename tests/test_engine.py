@@ -23,6 +23,11 @@ class TestOmniForgeEngine(unittest.TestCase):
         self.assertEqual(story_cartridge.name, "bedtime_story")
         self.assertEqual(story_cartridge.command, "story")
 
+        self.assertIn("clip", self.bot.cartridges)
+        clip_cartridge = self.bot.cartridges["clip"]
+        self.assertEqual(clip_cartridge.name, "podcast_clipper")
+        self.assertEqual(clip_cartridge.command, "clip")
+
     def test_autoforge_ast_validation(self):
         """Verifies AST safety checks prohibit dangerous calls."""
         valid_code = "def test():\n    return 42\n"
