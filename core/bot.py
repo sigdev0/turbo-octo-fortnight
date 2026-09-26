@@ -90,38 +90,37 @@ class OmniForgeBot:
             await update.message.reply_text("⛔ Access restricted. Contact admin to authorize your Telegram account.")
             return
 
-        cartridge_lines = [
-            f"• `/{cmd}` — {c.description}"
-            for cmd, c in self.cartridges.items()
-        ]
-        cartridges_text = "\n".join(cartridge_lines) if cartridge_lines else "No cartridges loaded."
-
         msg = (
-            "🌟 *Welcome to OmniForge Engine* 🌟\n\n"
-            "Your decoupled asset generator and autonomous micro-SaaS factory is live!\n\n"
-            "📦 *Loaded Cartridges:*\n"
-            f"{cartridges_text}\n\n"
-            "💡 *Autonomous AutoForge (While Driving):*\n"
-            "• `/idea <your idea>` — I will write the code, self-test it, and register the new command live!\n\n"
-            "⚙️ *System Commands:*\n"
-            "• `/status` — Check server health, uptime & asset count\n"
-            "• `/reload` — Refresh cartridges from disk\n"
-            "• `/help` — Detailed command guide"
+            "🌟 *Selamat Datang di OmniForge Engine* 🌟\n\n"
+            "Asisten pembuat aset otomatis dan audio personal anak Anda siap digunakan!\n\n"
+            "📦 *Pilihan Perintah (Bahasa Indonesia & English):*\n"
+            "• `/cerita <Nama> <Usia> <Tema> <Pelajaran>`\n"
+            "  Contoh: `/cerita Maya 2 awan kelembutan`\n"
+            "  Contoh: `/cerita Leo 8 bintang kesabaran`\n"
+            "• `/story <Name> <Age> <Theme> <Lesson>`\n"
+            "  Example: `/story Leo 8 space courage`\n"
+            "• `/afirmasi <Nama> <Tema>` atau `/morning <Name> <Theme>`\n"
+            "• `/clip <YouTube_URL>` (atau `/klip`)\n\n"
+            "💡 *AutoForge (Kirim Ide saat di Jalan):*\n"
+            "• `/idea <ide fitur baru>` — Kode otomatis dibuat, dites, dan didaftarkan langsung!\n\n"
+            "⚙️ *Sistem:* `/status` | `/reload` | `/help`"
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         msg = (
             "📖 *OmniForge Command Guide*\n\n"
-            "*1. Bedtime Stories (`/story`):*\n"
-            "`/story <Name> <Age> <Theme> <Lesson>`\n"
-            "Example: `/story Leo 8 space kindness`\n"
-            "Example: `/story Maya 2 clouds gentleness`\n\n"
-            "*2. AutoForge (`/idea`):*\n"
-            "`/idea <describe what you want>`\n"
-            "Example: `/idea 3-minute morning courage affirmations for kids`\n\n"
-            "*3. Voice Notes:*\n"
-            "Send any voice memo, and I'll forward it to AutoForge to execute while you're away!"
+            "🇮🇩 *Bahasa Indonesia:*\n"
+            "• `/cerita <Nama> <Usia> <Tema> <Pelajaran>`\n"
+            "  Suara: Gadis (balita <= 3 thn) & Ardi (anak >= 4 thn)\n"
+            "• `/afirmasi <Nama> <Tema>` — Semangat pagi\n"
+            "• `/klip <YouTube_URL>` — Shorts otomatis\n\n"
+            "🇬🇧 *English:*\n"
+            "• `/story <Name> <Age> <Theme> <Lesson>`\n"
+            "• `/morning <Name> <Theme>`\n"
+            "• `/clip <YouTube_URL>`\n\n"
+            "💡 *AutoForge (Autonomous Ideation):*\n"
+            "`/idea <describe what you want>`"
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
@@ -203,6 +202,18 @@ class OmniForgeBot:
             return
 
         cmd = update.message.text.split()[0].lstrip("/").lower()
+        payload: Dict[str, Any] = {}
+
+        # Indonesian Aliases
+        if cmd == "cerita":
+            cmd = "story"
+            payload["lang"] = "id"
+        elif cmd in ("afirmasi", "pagi"):
+            cmd = "morning"
+            payload["lang"] = "id"
+        elif cmd == "klip":
+            cmd = "clip"
+
         cartridge = self.cartridges.get(cmd)
 
         if not cartridge:
@@ -210,8 +221,13 @@ class OmniForgeBot:
             return
 
         # Parse args
-        args = context.args or []
-        payload: Dict[str, Any] = {}
+        args = list(context.args or [])
+        if "id" in [a.lower() for a in args]:
+            payload["lang"] = "id"
+            args = [a for a in args if a.lower() != "id"]
+        elif "en" in [a.lower() for a in args]:
+            payload["lang"] = "en"
+            args = [a for a in args if a.lower() != "en"]
 
         if cmd == "story":
             if len(args) >= 1:
@@ -330,6 +346,10 @@ class OmniForgeBot:
         for cmd in self.cartridges.keys():
             self.app.add_handler(CommandHandler(cmd, self.handle_cartridge_command))
 
+        # Indonesian Aliases
+        for alias in ("cerita", "afirmasi", "pagi", "klip"):
+            self.app.add_handler(CommandHandler(alias, self.handle_cartridge_command))
+
         return self.app
 
     async def simulate_command(self, command_line: str) -> Dict[str, Any]:
@@ -343,6 +363,24 @@ class OmniForgeBot:
 
         cmd = parts[0].lstrip("/").lower()
         args = parts[1:]
+        payload: Dict[str, Any] = {}
+
+        # Indonesian Aliases
+        if cmd == "cerita":
+            cmd = "story"
+            payload["lang"] = "id"
+        elif cmd in ("afirmasi", "pagi"):
+            cmd = "morning"
+            payload["lang"] = "id"
+        elif cmd == "klip":
+            cmd = "clip"
+
+        if "id" in [a.lower() for a in args]:
+            payload["lang"] = "id"
+            args = [a for a in args if a.lower() != "id"]
+        elif "en" in [a.lower() for a in args]:
+            payload["lang"] = "en"
+            args = [a for a in args if a.lower() != "en"]
 
         if cmd in ("start", "help", "status", "reload"):
             return {
@@ -361,7 +399,6 @@ class OmniForgeBot:
         if not cartridge:
             return {"status": "error", "message": f"Cartridge '{cmd}' not found"}
 
-        payload = {}
         if cmd == "story":
             payload["name"] = args[0] if len(args) >= 1 else "Little Explorer"
             payload["age"] = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 8

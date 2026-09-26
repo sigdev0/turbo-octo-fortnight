@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 from typing import Dict, Any
 from cartridges.base import BaseCartridge
-from core.config import OUTPUT_DIR
+from core.config import OUTPUT_DIR, DEFAULT_LANGUAGE
 from core.voice import VoiceSynthesizer
 from core.media import MediaMixer
 
@@ -17,23 +17,40 @@ class MorningAffirmationCartridge(BaseCartridge):
 
     @property
     def description(self) -> str:
-        return "Autonomous cartridge generated for: User Idea: 3-minute morning courage affirmations for kids  Generate the complete"
+        return "Generates empowering morning affirmations for kids and adults in English or Bahasa Indonesia."
 
     async def generate(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        target_name = payload.get("name", "Friend").capitalize()
-        theme = payload.get("theme", "courage and strength")
-        voice_profile = payload.get("voice_profile", "energetic_affirmation")
+        target_name = payload.get("name", "Sahabat" if DEFAULT_LANGUAGE == "id" else "Friend").capitalize()
+        theme = payload.get("theme", "keberanian dan kebaikan" if DEFAULT_LANGUAGE == "id" else "courage and strength")
+        lang = payload.get("lang")
 
-        # Craft message script
-        script_text = (
-            f"Good morning, {target_name}! Today is a brand new day full of opportunity. "
-            f"Remember that your courage is bigger than any challenge, and your kindness is your superpower. "
-            f"Take a deep breath, believe in yourself, and let your light shine bright today. You've got this!"
-        )
+        is_id = False
+        if lang:
+            is_id = lang.lower().strip() in ("id", "id-id", "indonesia", "indo")
+        elif DEFAULT_LANGUAGE.lower() in ("id", "indonesia"):
+            is_id = True
+
+        if is_id:
+            voice_profile = payload.get("voice_profile", "indonesian_affirmation")
+            script_text = (
+                f"Selamat pagi, {target_name}! Hari ini adalah hari baru yang penuh dengan kebaikan dan peluang hebat. "
+                f"Ingatlah bahwa keberanianmu selalu lebih besar dari tantangan apa pun, dan kebaikan hatimu adalah kekuatan supermu. "
+                f"Tarik napas yang dalam, percaya pada dirimu sendiri, dan pancarkan senyum terbaikmu hari ini. Kamu pasti bisa!"
+            )
+            title = f"Afirmasi Pagi {target_name}"
+        else:
+            voice_profile = payload.get("voice_profile", "energetic_affirmation")
+            script_text = (
+                f"Good morning, {target_name}! Today is a brand new day full of opportunity. "
+                f"Remember that your courage is bigger than any challenge, and your kindness is your superpower. "
+                f"Take a deep breath, believe in yourself, and let your light shine bright today. You've got this!"
+            )
+            title = f"{target_name}'s Daily Boost"
 
         safe_name = target_name.lower().replace(" ", "_")
-        raw_voice_file = OUTPUT_DIR / f"voice_{safe_name}_{self.name}.mp3"
-        final_file = OUTPUT_DIR / f"{self.name}_{safe_name}.mp3"
+        lang_tag = "id" if is_id else "en"
+        raw_voice_file = OUTPUT_DIR / f"voice_{safe_name}_{self.name}_{lang_tag}.mp3"
+        final_file = OUTPUT_DIR / f"{self.name}_{safe_name}_{lang_tag}.mp3"
 
         voice_engine = VoiceSynthesizer(profile_name=voice_profile)
         await voice_engine.synthesize(
@@ -56,12 +73,13 @@ class MorningAffirmationCartridge(BaseCartridge):
 
         return {
             "status": "success",
-            "title": f"{target_name}'s Daily Boost",
+            "title": title,
             "output_file": str(final_file),
             "script": script_text,
             "metadata": {
                 "target_name": target_name,
                 "theme": theme,
+                "language": "id" if is_id else "en",
                 "cartridge": self.name
             }
         }

@@ -29,6 +29,9 @@ ROUTER_API_BASE = os.getenv("ROUTER_API_BASE", "https://api.openai.com/v1").rstr
 ROUTER_API_KEY = os.getenv("ROUTER_API_KEY", "")
 ROUTER_MODEL = os.getenv("ROUTER_MODEL", "claude-3-5-sonnet")
 
+# Default Language ('id' for Bahasa Indonesia, 'en' for English)
+DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "id")
+
 # Voice Profiles
 VOICE_PROFILES = {
     "bedtime_british": {
@@ -49,6 +52,18 @@ VOICE_PROFILES = {
         "volume": "+0%",
         "pitch": "+0Hz"
     },
+    "indonesian_female": {
+        "voice": "id-ID-GadisNeural",
+        "rate": "-10%",
+        "volume": "+0%",
+        "pitch": "+0Hz"
+    },
+    "indonesian_male": {
+        "voice": "id-ID-ArdiNeural",
+        "rate": "-10%",
+        "volume": "+0%",
+        "pitch": "-2Hz"
+    },
     "indonesian_warm": {
         "voice": "id-ID-ArdiNeural",
         "rate": "-10%",
@@ -57,6 +72,12 @@ VOICE_PROFILES = {
     },
     "energetic_affirmation": {
         "voice": "en-US-GuyNeural",
+        "rate": "+0%",
+        "volume": "+0%",
+        "pitch": "+0Hz"
+    },
+    "indonesian_affirmation": {
+        "voice": "id-ID-GadisNeural",
         "rate": "+0%",
         "volume": "+0%",
         "pitch": "+0Hz"
