@@ -11,12 +11,13 @@ MUSIC_DIR = ASSETS_DIR / "music"
 TEMPLATES_DIR = ASSETS_DIR / "templates"
 OUTPUT_DIR = BASE_DIR / "output"
 BACKLOG_DIR = BASE_DIR / "backlog"
+DATA_DIR = BASE_DIR / "data"
 
 # Load .env from project root
 load_dotenv(BASE_DIR / ".env")
 
 # Ensure required directories exist
-for p in [MUSIC_DIR, TEMPLATES_DIR, OUTPUT_DIR, BACKLOG_DIR]:
+for p in [MUSIC_DIR, TEMPLATES_DIR, OUTPUT_DIR, BACKLOG_DIR, DATA_DIR]:
     p.mkdir(parents=True, exist_ok=True)
 
 # Telegram Bot Configuration

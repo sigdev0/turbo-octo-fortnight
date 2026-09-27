@@ -14,6 +14,11 @@ __pycache__/
 # System files
 .DS_Store
 
-# Temporary outputs (keep directory structure)
+# Temporary outputs & runtime data (keep directory structure)
 output/*.mp3
+output/*.mp4
+output/*.wav
+output/*.png
 !output/.gitkeep
+data/*.json
+!data/.gitkeep

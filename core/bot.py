@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import importlib.util
+import json
 import logging
 import os
 import sys
@@ -25,11 +26,14 @@ from telegram.ext import (
 from core.config import (
     CARTRIDGES_DIR,
     OUTPUT_DIR,
+    DATA_DIR,
     TELEGRAM_BOT_TOKEN,
-    ALLOWED_TELEGRAM_USERS
+    ALLOWED_TELEGRAM_USERS,
+    DEFAULT_LANGUAGE
 )
 from cartridges.base import BaseCartridge
 from core.autoforge import AutoForge
+from core.i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +46,55 @@ class OmniForgeBot:
         self.autoforge = AutoForge()
         self.session_counter = 0
         self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.user_prefs_file = DATA_DIR / "user_preferences.json"
+        self.user_languages: Dict[str, str] = self._load_user_preferences()
         self.load_cartridges()
+
+    def _load_user_preferences(self) -> Dict[str, str]:
+        if self.user_prefs_file.exists():
+            try:
+                with open(self.user_prefs_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load user preferences: {e}")
+        return {}
+
+    def _save_user_preferences(self) -> None:
+        try:
+            with open(self.user_prefs_file, "w", encoding="utf-8") as f:
+                json.dump(self.user_languages, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save user preferences: {e}")
+
+    def resolve_user_language(self, update: Optional[Update] = None, explicit_lang: Optional[str] = None) -> str:
+        """
+        Determines user language using the resolution hierarchy:
+        1. Explicit request flag ('id' or 'en')
+        2. Saved user preference
+        3. Telegram client language code (e.g. 'id' vs 'en')
+        4. Config DEFAULT_LANGUAGE fallback
+        """
+        if explicit_lang:
+            return "id" if explicit_lang.lower().strip() in ("id", "id-id", "indonesia", "indo") else "en"
+
+        user = update.effective_user if update else None
+        if user:
+            uid = str(user.id)
+            if uid in self.user_languages:
+                return self.user_languages[uid]
+
+            if user.language_code:
+                code = user.language_code.lower()
+                if code.startswith("id"):
+                    return "id"
+                return "en"
+
+        return "id" if DEFAULT_LANGUAGE.lower() in ("id", "indonesia") else "en"
+
+    def _set_user_language(self, user_id: str, lang: str) -> None:
+        clean_lang = "id" if lang.lower().strip() in ("id", "id-id", "indonesia", "indo") else "en"
+        self.user_languages[str(user_id)] = clean_lang
+        self._save_user_preferences()
 
     def load_cartridges(self) -> None:
         """
@@ -97,38 +149,59 @@ class OmniForgeBot:
             await update.message.reply_text("⛔ Access restricted. Contact admin to authorize your Telegram account.")
             return
 
+        lang = self.resolve_user_language(update)
         msg = (
-            "🌟 *Selamat Datang di OmniForge Engine* 🌟\n\n"
-            "Asisten pembuat aset otomatis dan audio personal anak Anda siap digunakan!\n\n"
-            "📦 *Pilihan Perintah:*\n"
-            "• `/cerita` atau `/story` — *Menu Interaktif 4-Tap* (Tinggal klik nama & tema!)\n"
-            "• `/cerita <Nama> <Usia> <Tema> <Pelajaran>`\n"
-            "  Contoh: `/cerita Maya 2 awan kelembutan`\n"
-            "  Contoh: `/cerita Leo 8 bintang kesabaran`\n"
-            "• `/afirmasi` atau `/morning` — *Afirmasi Pagi Ceria*\n"
-            "• `/klip <YouTube_URL>` (atau `/clip`) — *Shorts Otomatis*\n\n"
-            "💡 *AutoForge (Kirim Ide saat di Jalan):*\n"
-            "• `/idea <ide fitur baru>` — Kode otomatis dibuat, dites, dan didaftarkan langsung!\n\n"
-            "⚙️ *Sistem:* `/status` | `/reload` | `/help`"
+            f"{t('start_title', lang)}\n\n"
+            f"{t('start_subtitle', lang)}\n\n"
+            f"{t('start_commands_header', lang)}\n"
+            f"{t('start_cmd_story', lang)}\n"
+            f"{t('start_cmd_morning', lang)}\n"
+            f"{t('start_cmd_clip', lang)}\n"
+            f"{t('start_cmd_idea', lang)}\n\n"
+            f"{t('start_cmd_system', lang)}"
+        )
+        toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
+        target_lang = "en" if lang == "id" else "id"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")]
+        ])
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        lang = self.resolve_user_language(update)
+        msg = (
+            f"{t('help_title', lang)}\n\n"
+            f"{t('help_story_section', lang)}\n\n"
+            f"{t('help_morning_section', lang)}\n\n"
+            f"{t('help_clip_section', lang)}\n\n"
+            f"{t('help_idea_section', lang)}"
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        msg = (
-            "📖 *Panduan Perintah OmniForge*\n\n"
-            "🌙 *Cerita Pengantar Tidur (Screen-Free):*\n"
-            "• `/cerita` atau `/story` (Kirim tanpa argumen untuk menu tombol interaktif)\n"
-            "• Format manual: `/cerita <Nama> <Usia> <Tema> <Pelajaran>`\n"
-            "  🎙️ Balita (≤3 thn): *Gadis Neural* (Lembut & menenangkan)\n"
-            "  🎙️ Anak (≥4 thn): *Ardi Neural* (Bijaksana & ramah)\n\n"
-            "☀️ *Afirmasi Pagi:*\n"
-            "• `/afirmasi` atau `/morning` (Tombol cepat Maya, Leo, atau Sahabat)\n\n"
-            "🎬 *Video Podcast Clipper:*\n"
-            "• `/klip <YouTube_URL>` atau `/clip <URL>`\n\n"
-            "💡 *Autonomous Ideation:*\n"
-            "• `/idea <deskripsi fitur atau aset yang diinginkan>`"
-        )
-        await update.message.reply_text(msg, parse_mode="Markdown")
+    async def lang_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._is_user_authorized(update):
+            return
+
+        user = update.effective_user
+        user_id = str(user.id) if user else "anon"
+
+        args = list(context.args or [])
+        if args:
+            target = args[0].lower().strip()
+            new_lang = "id" if target in ("id", "indonesia", "indo") else "en"
+            self._set_user_language(user_id, new_lang)
+            msg_key = "lang_switched_id" if new_lang == "id" else "lang_switched_en"
+            await update.message.reply_text(t(msg_key, new_lang), parse_mode="Markdown")
+            return
+
+        curr_lang = self.resolve_user_language(update)
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🇮🇩 Bahasa Indonesia" + (" (Aktif)" if curr_lang == "id" else ""), callback_data="set_lang:id"),
+                InlineKeyboardButton("🇬🇧 Global English" + (" (Active)" if curr_lang == "en" else ""), callback_data="set_lang:en")
+            ]
+        ])
+        await update.message.reply_text(t("lang_picker_prompt", curr_lang), reply_markup=kb, parse_mode="Markdown")
 
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         uptime_sec = int(time.time() - self.start_time)
@@ -342,14 +415,17 @@ class OmniForgeBot:
                 await target_message.reply_text(error_text)
             return
 
+        lang = payload.get("lang", "en")
+        prep_text = f"⚡ *Menyiapkan aset `/{cmd}`...*" if lang == "id" else f"⚡ *Preparing `/{cmd}` asset...*"
         if not status_msg:
-            status_msg = await target_message.reply_text(f"⚡ *Menyiapkan aset `/{cmd}`...*", parse_mode="Markdown")
+            status_msg = await target_message.reply_text(prep_text, parse_mode="Markdown")
         else:
-            await status_msg.edit_text(f"⚡ *Menyiapkan aset `/{cmd}`...*", parse_mode="Markdown")
+            await status_msg.edit_text(prep_text, parse_mode="Markdown")
 
         async def on_progress(step_msg: str):
             try:
-                await status_msg.edit_text(f"⚙️ *Proses `/{cmd}`:*\n{step_msg}", parse_mode="Markdown")
+                proc_hdr = f"⚙️ *Proses `/{cmd}`:*" if lang == "id" else f"⚙️ *Processing `/{cmd}`:*"
+                await status_msg.edit_text(f"{proc_hdr}\n{step_msg}", parse_mode="Markdown")
             except Exception:
                 pass
 
@@ -359,14 +435,19 @@ class OmniForgeBot:
             result = await cartridge.generate(payload)
             if result.get("status") != "success":
                 err = result.get('message', result.get('error', 'Unknown error'))
-                await status_msg.edit_text(f"❌ Terjadi kesalahan: {err}")
+                await status_msg.edit_text(f"❌ Error: {err}")
                 return
 
             output_file = result.get("output_file")
             output_files = result.get("output_files", [output_file] if output_file else [])
             title = result.get("title", f"Generated {cmd.title()}")
 
-            await status_msg.edit_text(f"✨ *Rendering Selesai:* {title}\nMengirim media ke chat Anda...", parse_mode="Markdown")
+            upload_text = (
+                f"✨ *Rendering Selesai:* {title}\nMengirim media ke chat Anda..."
+                if lang == "id" else
+                f"✨ *Rendering Complete:* {title}\nUploading media to your chat..."
+            )
+            await status_msg.edit_text(upload_text, parse_mode="Markdown")
 
             for file_path in output_files:
                 p = Path(file_path)
@@ -429,6 +510,8 @@ class OmniForgeBot:
             explicit_lang = True
         elif cmd == "klip":
             cmd = "clip"
+        elif cmd == "ide":
+            return await self.idea_command(update, context)
 
         cartridge = self.cartridges.get(cmd)
         if not cartridge:
@@ -447,21 +530,16 @@ class OmniForgeBot:
             args = [a for a in args if a.lower() != "en"]
 
         if cmd == "story":
-            # Flow 1: If no args given -> launch interactive 4-tap wizard!
+            user_lang = self.resolve_user_language(update)
+            # Flow 1: If no args given -> launch interactive wizard in user's language!
             if not args:
-                if raw_cmd == "cerita":
-                    await update.message.reply_text(
-                        "👶 *Siapa yang akan mendengarkan cerita malam ini?*",
-                        reply_markup=self._get_child_keyboard("id"),
-                        parse_mode="Markdown"
-                    )
-                else:
-                    await update.message.reply_text(
-                        "🌙 *OmniForge Bedtime Story Studio* 🌙\n\n"
-                        "Pilih bahasa cerita / Choose story language:",
-                        reply_markup=self._get_story_lang_keyboard(),
-                        parse_mode="Markdown"
-                    )
+                wizard_lang = "id" if raw_cmd == "cerita" else user_lang
+                prompt_text = t("wiz_child_prompt", wizard_lang)
+                await update.message.reply_text(
+                    prompt_text,
+                    reply_markup=self._get_child_keyboard(wizard_lang),
+                    parse_mode="Markdown"
+                )
                 return
 
             # Args given: parse them
@@ -486,29 +564,37 @@ class OmniForgeBot:
                 payload["lesson"] = "kesabaran dan kebaikan" if (explicit_lang and payload.get("lang") == "id") else "patience and kindness"
 
             # If language was NOT explicitly set via /cerita or 'id'/'en' flags:
-            # Present interactive language selection buttons!
             if not explicit_lang:
-                sess_id = self._store_session({"cmd": "story", "payload": payload})
-                await update.message.reply_text(
-                    f"🌐 *Pilih Bahasa untuk Cerita {payload['name']}:*\n"
-                    f"• Usia: {payload['age']} tahun\n"
-                    f"• Tema: {payload['theme']}\n"
-                    f"• Pelajaran: {payload['lesson']}",
-                    reply_markup=InlineKeyboardMarkup([
-                        [
-                            InlineKeyboardButton("🇮🇩 Bahasa Indonesia", callback_data=f"pick_lang:{sess_id}:id"),
-                            InlineKeyboardButton("🇬🇧 English", callback_data=f"pick_lang:{sess_id}:en")
-                        ]
-                    ]),
-                    parse_mode="Markdown"
-                )
-                return
+                user_id = str(update.effective_user.id) if update.effective_user else ""
+                if user_id in self.user_languages:
+                    payload["lang"] = self.user_languages[user_id]
+                else:
+                    sess_id = self._store_session({"cmd": "story", "payload": payload})
+                    prompt_msg = t(
+                        "story_lang_prompt",
+                        user_lang,
+                        name=payload['name'],
+                        age=payload['age'],
+                        theme=payload['theme'],
+                        lesson=payload['lesson']
+                    )
+                    await update.message.reply_text(
+                        prompt_msg,
+                        reply_markup=InlineKeyboardMarkup([
+                            [
+                                InlineKeyboardButton("🇮🇩 Bahasa Indonesia", callback_data=f"pick_lang:{sess_id}:id"),
+                                InlineKeyboardButton("🇬🇧 Global English", callback_data=f"pick_lang:{sess_id}:en")
+                            ]
+                        ]),
+                        parse_mode="Markdown"
+                    )
+                    return
 
         elif cmd == "morning":
+            user_lang = self.resolve_user_language(update)
             if not args:
                 await update.message.reply_text(
-                    "☀️ *OmniForge Morning Affirmation Studio* ☀️\n\n"
-                    "Pilih profil afirmasi pagi:",
+                    t("wiz_morning_prompt", user_lang),
                     reply_markup=self._get_morning_keyboard(),
                     parse_mode="Markdown"
                 )
@@ -519,19 +605,22 @@ class OmniForgeBot:
                 payload["theme"] = " ".join(args[1:])
 
             if not explicit_lang:
-                sess_id = self._store_session({"cmd": "morning", "payload": payload})
-                await update.message.reply_text(
-                    f"🌐 *Pilih Bahasa Afirmasi {payload['name']}:*\n"
-                    f"• Tema: {payload.get('theme', 'keberanian dan kebaikan')}",
-                    reply_markup=InlineKeyboardMarkup([
-                        [
-                            InlineKeyboardButton("🇮🇩 Bahasa Indonesia", callback_data=f"pick_lang:{sess_id}:id"),
-                            InlineKeyboardButton("🇬🇧 English", callback_data=f"pick_lang:{sess_id}:en")
-                        ]
-                    ]),
-                    parse_mode="Markdown"
-                )
-                return
+                user_id = str(update.effective_user.id) if update.effective_user else ""
+                if user_id in self.user_languages:
+                    payload["lang"] = self.user_languages[user_id]
+                else:
+                    sess_id = self._store_session({"cmd": "morning", "payload": payload})
+                    await update.message.reply_text(
+                        t("morning_lang_prompt", user_lang, name=payload['name'], theme=payload.get('theme', 'courage')),
+                        reply_markup=InlineKeyboardMarkup([
+                            [
+                                InlineKeyboardButton("🇮🇩 Bahasa Indonesia", callback_data=f"pick_lang:{sess_id}:id"),
+                                InlineKeyboardButton("🇬🇧 Global English", callback_data=f"pick_lang:{sess_id}:en")
+                            ]
+                        ]),
+                        parse_mode="Markdown"
+                    )
+                    return
 
         elif cmd == "clip":
             if not args:
@@ -576,13 +665,20 @@ class OmniForgeBot:
         prefix = parts[0]
 
         try:
-            if prefix == "wiz_lang":
+            if prefix == "set_lang":
+                new_lang = parts[1] if len(parts) > 1 else "id"
+                user = update.effective_user
+                if user:
+                    self._set_user_language(str(user.id), new_lang)
+                msg_key = "lang_switched_id" if new_lang == "id" else "lang_switched_en"
+                await query.edit_message_text(t(msg_key, new_lang), parse_mode="Markdown")
+
+            elif prefix == "wiz_lang":
                 lang = parts[1] if len(parts) > 1 else "id"
-                prompt_text = (
-                    "👶 *Siapa yang akan mendengarkan cerita malam ini?*"
-                    if lang == "id" else
-                    "👶 *Who is listening to the bedtime story tonight?*"
-                )
+                user = update.effective_user
+                if user:
+                    self._set_user_language(str(user.id), lang)
+                prompt_text = t("wiz_child_prompt", lang)
                 await query.edit_message_text(
                     prompt_text,
                     reply_markup=self._get_child_keyboard(lang),
@@ -592,7 +688,7 @@ class OmniForgeBot:
             elif prefix == "wiz_back_lang":
                 await query.edit_message_text(
                     "🌙 *OmniForge Bedtime Story Studio* 🌙\n\n"
-                    "Pilih bahasa cerita / Choose story language:",
+                    "Choose story language / Pilih bahasa cerita:",
                     reply_markup=self._get_story_lang_keyboard(),
                     parse_mode="Markdown"
                 )
@@ -605,11 +701,10 @@ class OmniForgeBot:
 
                 if lang == "id":
                     voice_note = "Gadis Neural (Lembut & Menenangkan 🌸)" if age <= 3 else "Ardi Neural (Bijaksana & Menenangkan 🦉)"
-                    prompt_text = f"🎨 *Pilih Tema Cerita Pengantar Tidur untuk {name} ({age} thn):*\n🎙️ Suara: {voice_note}"
                 else:
                     voice_note = "Gentle Female Lullaby 🌸" if age <= 3 else "British Storyteller 🦉"
-                    prompt_text = f"🎨 *Choose Bedtime Theme for {name} (Age {age}):*\n🎙️ Voice: {voice_note}"
 
+                prompt_text = t("wiz_theme_prompt", lang, name=name, age=age, voice=voice_note)
                 await query.edit_message_text(
                     prompt_text,
                     reply_markup=self._get_theme_keyboard(lang, name, age),
@@ -618,11 +713,7 @@ class OmniForgeBot:
 
             elif prefix == "wiz_back_child":
                 lang = parts[1] if len(parts) > 1 else "id"
-                prompt_text = (
-                    "👶 *Siapa yang akan mendengarkan cerita malam ini?*"
-                    if lang == "id" else
-                    "👶 *Who is listening to the bedtime story tonight?*"
-                )
+                prompt_text = t("wiz_child_prompt", lang)
                 await query.edit_message_text(
                     prompt_text,
                     reply_markup=self._get_child_keyboard(lang),
@@ -631,36 +722,11 @@ class OmniForgeBot:
 
             elif prefix == "wiz_custom":
                 lang = parts[1] if len(parts) > 1 else "id"
-                if lang == "id":
-                    help_text = (
-                        "✏️ *Format Perintah Cerita Manual:*\n\n"
-                        "Ketik langsung di chat dengan format:\n"
-                        "`/cerita <Nama> <Usia> <Tema> <Pelajaran>`\n\n"
-                        "Contoh:\n"
-                        "• `/cerita Maya 2 awan kelembutan`\n"
-                        "• `/cerita Leo 8 luar angkasa keberanian`"
-                    )
-                else:
-                    help_text = (
-                        "✏️ *Manual Story Command Format:*\n\n"
-                        "Type directly into the chat:\n"
-                        "`/story <Name> <Age> <Theme> <Lesson>`\n\n"
-                        "Examples:\n"
-                        "• `/story Maya 2 clouds gentleness`\n"
-                        "• `/story Leo 8 space courage`"
-                    )
-                await query.edit_message_text(help_text, parse_mode="Markdown")
+                await query.edit_message_text(t("wiz_custom_prompt", lang), parse_mode="Markdown")
 
             elif prefix == "wiz_help":
-                help_text = (
-                    "💡 *Panduan Cepat OmniForge:*\n\n"
-                    "• Anda dapat menekan tombol wizard di menu ini untuk membuat cerita instan dalam 3 sentuhan.\n"
-                    "• Anda juga dapat mengetik perintah lengkap kapan saja:\n"
-                    "  `/cerita Maya 2 awan` atau `/story Leo 8 galaxy`\n"
-                    "• Untuk video shorts: `/clip <YouTube_URL>`\n"
-                    "• Untuk ide baru: `/idea <ide fitur>`"
-                )
-                await query.edit_message_text(help_text, parse_mode="Markdown")
+                curr_lang = self.resolve_user_language(update)
+                await query.edit_message_text(t("wiz_help_prompt", curr_lang), parse_mode="Markdown")
 
             elif prefix == "wiz_gen":
                 # wiz_gen:<lang>:<name>:<age>:<theme>:<lesson>
@@ -739,6 +805,7 @@ class OmniForgeBot:
         self.app.add_handler(CommandHandler("start", self.start_command))
         self.app.add_handler(CommandHandler("help", self.help_command))
         self.app.add_handler(CommandHandler("status", self.status_command))
+        self.app.add_handler(CommandHandler("lang", self.lang_command))
         self.app.add_handler(CommandHandler("reload", self.reload_command))
         self.app.add_handler(CommandHandler("idea", self.idea_command))
 
@@ -749,6 +816,7 @@ class OmniForgeBot:
         # Indonesian Aliases
         for alias in ("cerita", "afirmasi", "pagi", "klip"):
             self.app.add_handler(CommandHandler(alias, self.handle_cartridge_command))
+        self.app.add_handler(CommandHandler("ide", self.idea_command))
 
         # Interactive Callback Query Handler
         self.app.add_handler(CallbackQueryHandler(self.handle_callback_query))

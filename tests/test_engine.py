@@ -103,5 +103,51 @@ class TestOmniForgeEngine(unittest.TestCase):
         self.assertTrue(cartridge._is_indonesian(None, "hutan ajaib", "kebaikan"))
         self.assertFalse(cartridge._is_indonesian("en", "forest", "kindness"))
 
+    def test_i18n_translation(self):
+        """Verifies string resolution for both Global English and Indonesian."""
+        from core.i18n import t
+        # Test English
+        en_title = t("start_title", "en")
+        self.assertIn("Welcome", en_title)
+        # Test Indonesian
+        id_title = t("start_title", "id")
+        self.assertIn("Selamat Datang", id_title)
+        # Test interpolation
+        interpolated = t("story_lang_prompt", "en", name="Leo", age=8, theme="space", lesson="courage")
+        self.assertIn("Leo", interpolated)
+        self.assertIn("space", interpolated)
+
+    def test_user_language_resolution(self):
+        """Verifies user language resolution hierarchy."""
+        # 1. Explicit request flag takes precedence
+        self.assertEqual(self.bot.resolve_user_language(explicit_lang="id"), "id")
+        self.assertEqual(self.bot.resolve_user_language(explicit_lang="en"), "en")
+
+        # 2. Saved preference
+        self.bot._set_user_language("test_user_123", "en")
+        class MockUser:
+            id = "test_user_123"
+            language_code = "id"
+        class MockUpdate:
+            effective_user = MockUser()
+
+        # Even though client is 'id', saved preference is 'en'
+        self.assertEqual(self.bot.resolve_user_language(MockUpdate()), "en")
+
+        # 3. New user without saved preference -> follows client language_code
+        class NewUser:
+            id = "new_user_456"
+            language_code = "id-ID"
+        class NewUpdate:
+            effective_user = NewUser()
+        self.assertEqual(self.bot.resolve_user_language(NewUpdate()), "id")
+
+        class GlobalUser:
+            id = "global_user_789"
+            language_code = "en-US"
+        class GlobalUpdate:
+            effective_user = GlobalUser()
+        self.assertEqual(self.bot.resolve_user_language(GlobalUpdate()), "en")
+
 if __name__ == "__main__":
     unittest.main()
