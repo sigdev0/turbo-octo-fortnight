@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  omniforge:
+    build: .
+    container_name: omniforge
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./output:/app/output
+      - ./data:/app/data
+      - ./backlog:/app/backlog
+      - ./cartridges:/app/cartridges

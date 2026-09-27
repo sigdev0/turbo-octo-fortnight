@@ -1,0 +1,15 @@
+[Unit]
+Description=OmniForge Autonomous Execution Engine & Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=aufar
+WorkingDirectory=/opt/omni-forge
+ExecStart=/opt/omni-forge/.venv/bin/python main.py --run
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/omni-forge/.env
+
+[Install]
+WantedBy=multi-user.target
