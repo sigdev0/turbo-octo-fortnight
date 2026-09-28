@@ -41,11 +41,13 @@ class MediaMixer:
         music_path: Optional[str] = None,
         music_volume: float = 0.12,
         voice_volume: float = 1.0,
-        fade_out_sec: float = 3.0
+        fade_out_sec: float = 4.0,
+        outro_padding_sec: float = 18.0
     ) -> str:
         """
         Mixes voiceover with background music using ffmpeg.
-        Loops the music if necessary and ends exactly when the voiceover finishes.
+        Loops the music if necessary and includes an ambient music outro padding
+        after the voiceover whispers its final goodnight.
         """
         voice = Path(voice_path)
         out = Path(output_path)
@@ -58,19 +60,8 @@ class MediaMixer:
         if not music_path or not Path(music_path).exists():
             default_music = MUSIC_DIR / "ambient_sleep_bed.mp3"
             if not default_music.exists():
-                self.generate_ambient_bed(duration_sec=300, output_path=str(default_music))
+                self.generate_ambient_bed(duration_sec=600, output_path=str(default_music))
             music_path = str(default_music)
-
-        # Complex filter:
-        # 1. Loop background music indefinitely
-        # 2. Adjust volumes (voice = 1.0, music = ~0.12 / -22dB)
-        # 3. amix duration=first (cut off when voice finishes)
-        filter_complex = (
-            f"[1:a]volume={music_volume}[bg];"
-            f"[0:a]volume={voice_volume}[voice];"
-            f"[voice][bg]amix=inputs=2:duration=first:dropout_transition=3[mixed];"
-            f"[mixed]afade=t=out:st=0:d={fade_out_sec}:curve=exp[final]"
-        )
 
         # Get voice duration for fade out
         duration_cmd = [
@@ -82,19 +73,20 @@ class MediaMixer:
         try:
             res = subprocess.run(duration_cmd, capture_output=True, text=True, check=True)
             voice_duration = float(res.stdout.strip())
-            fade_start = max(0.0, voice_duration - fade_out_sec)
+            total_duration = voice_duration + outro_padding_sec
+            fade_start = max(0.0, total_duration - fade_out_sec)
             filter_complex = (
+                f"[0:a]volume={voice_volume},apad=pad_dur={outro_padding_sec}[voice];"
                 f"[1:a]volume={music_volume}[bg];"
-                f"[0:a]volume={voice_volume}[voice];"
-                f"[voice][bg]amix=inputs=2:duration=first:dropout_transition=3[mixed];"
+                f"[voice][bg]amix=inputs=2:duration=first:dropout_transition=4[mixed];"
                 f"[mixed]afade=t=out:st={fade_start:.2f}:d={fade_out_sec}[final]"
             )
         except Exception:
             # Fallback if ffprobe isn't available
             filter_complex = (
+                f"[0:a]volume={voice_volume},apad=pad_dur={outro_padding_sec}[voice];"
                 f"[1:a]volume={music_volume}[bg];"
-                f"[0:a]volume={voice_volume}[voice];"
-                f"[voice][bg]amix=inputs=2:duration=first:dropout_transition=3[final]"
+                f"[voice][bg]amix=inputs=2:duration=first:dropout_transition=4[final]"
             )
 
         cmd = [

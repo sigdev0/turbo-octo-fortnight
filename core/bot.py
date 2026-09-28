@@ -328,12 +328,15 @@ class OmniForgeBot:
             if age <= 3:
                 buttons = [
                     [
-                        InlineKeyboardButton("☁️ Negeri Awan Lembut", callback_data=f"wiz_gen:id:{name}:{age}:awan lembut:kelembutan"),
-                        InlineKeyboardButton("🐰 Hewan Hutan Tidur", callback_data=f"wiz_gen:id:{name}:{age}:hewan hutan tidur:kedamaian")
+                        InlineKeyboardButton("⛵ Perahu Pinisi Bintang", callback_data=f"wiz_gen:id:{name}:{age}:perahu pinisi:ketenangan"),
+                        InlineKeyboardButton("🌿 Hutan Kalpataru", callback_data=f"wiz_gen:id:{name}:{age}:hutan kalpataru:kedamaian")
                     ],
                     [
-                        InlineKeyboardButton("🌊 Bawah Laut Bintang", callback_data=f"wiz_gen:id:{name}:{age}:bawah laut bintang:ketenangan"),
-                        InlineKeyboardButton("🎈 Balon Udara Bulan", callback_data=f"wiz_gen:id:{name}:{age}:balon udara bulan:kasih sayang")
+                        InlineKeyboardButton("☁️ Negeri di Atas Awan", callback_data=f"wiz_gen:id:{name}:{age}:negeri awan:kelembutan"),
+                        InlineKeyboardButton("🏮 Lentera Kunang-Kunang", callback_data=f"wiz_gen:id:{name}:{age}:lentera kunang:ketenteraman")
+                    ],
+                    [
+                        InlineKeyboardButton("⭐ Bintang Kejora Lembut", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:kasih sayang")
                     ],
                     [
                         InlineKeyboardButton("🔙 Kembali", callback_data=f"wiz_back_child:{lang}")
@@ -342,12 +345,15 @@ class OmniForgeBot:
             else:
                 buttons = [
                     [
-                        InlineKeyboardButton("🚀 Penjelajah Antariksa", callback_data=f"wiz_gen:id:{name}:{age}:luar angkasa dan bintang:keberanian"),
-                        InlineKeyboardButton("🦁 Hutan Kristal Ajaib", callback_data=f"wiz_gen:id:{name}:{age}:hutan kristal ajaib:kesabaran")
+                        InlineKeyboardButton("⛵ Ekspedisi Pinisi Samudra", callback_data=f"wiz_gen:id:{name}:{age}:pinisi samudra:keberanian"),
+                        InlineKeyboardButton("🌳 Pohon Kalpataru Ajaib", callback_data=f"wiz_gen:id:{name}:{age}:hutan kalpataru:kebijaksanaan")
                     ],
                     [
-                        InlineKeyboardButton("🏰 Kastil Bintang", callback_data=f"wiz_gen:id:{name}:{age}:misteri kastil bintang:kejujuran"),
-                        InlineKeyboardButton("🦖 Sahabat Dinosaurus", callback_data=f"wiz_gen:id:{name}:{age}:sahabat dinosaurus:persahabatan")
+                        InlineKeyboardButton("☁️ Istana di Atas Awan", callback_data=f"wiz_gen:id:{name}:{age}:istana awan:kesabaran"),
+                        InlineKeyboardButton("🏮 Lembah Kunang-Kunang", callback_data=f"wiz_gen:id:{name}:{age}:lembah kunang:kejujuran")
+                    ],
+                    [
+                        InlineKeyboardButton("🌌 Menembus Bintang Kejora", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:imajinasi")
                     ],
                     [
                         InlineKeyboardButton("🔙 Kembali", callback_data=f"wiz_back_child:{lang}")
@@ -357,12 +363,15 @@ class OmniForgeBot:
             if age <= 3:
                 buttons = [
                     [
-                        InlineKeyboardButton("☁️ Sleepy Clouds", callback_data=f"wiz_gen:en:{name}:{age}:sleepy clouds:gentleness"),
-                        InlineKeyboardButton("🐰 Woodland Friends", callback_data=f"wiz_gen:en:{name}:{age}:woodland friends:peacefulness")
+                        InlineKeyboardButton("⛵ Starlight Pinisi Boat", callback_data=f"wiz_gen:en:{name}:{age}:pinisi boat:peacefulness"),
+                        InlineKeyboardButton("🌿 Kalpataru Forest", callback_data=f"wiz_gen:en:{name}:{age}:kalpataru forest:kindness")
                     ],
                     [
-                        InlineKeyboardButton("🌊 Ocean Stars", callback_data=f"wiz_gen:en:{name}:{age}:ocean stars:calmness"),
-                        InlineKeyboardButton("🎈 Moonlit Balloon", callback_data=f"wiz_gen:en:{name}:{age}:moonlit balloon:love")
+                        InlineKeyboardButton("☁️ Sleepy Cloud Kingdom", callback_data=f"wiz_gen:en:{name}:{age}:cloud kingdom:gentleness"),
+                        InlineKeyboardButton("🏮 Firefly Lantern River", callback_data=f"wiz_gen:en:{name}:{age}:firefly lantern:calmness")
+                    ],
+                    [
+                        InlineKeyboardButton("⭐ Gentle Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:comfort")
                     ],
                     [
                         InlineKeyboardButton("🔙 Back", callback_data=f"wiz_back_child:{lang}")
@@ -371,12 +380,15 @@ class OmniForgeBot:
             else:
                 buttons = [
                     [
-                        InlineKeyboardButton("🚀 Starlight Explorer", callback_data=f"wiz_gen:en:{name}:{age}:starlight explorer:courage"),
-                        InlineKeyboardButton("🦁 Whispering Woods", callback_data=f"wiz_gen:en:{name}:{age}:whispering woods:patience")
+                        InlineKeyboardButton("⛵ Starlight Pinisi Voyager", callback_data=f"wiz_gen:en:{name}:{age}:pinisi voyager:courage"),
+                        InlineKeyboardButton("🌳 Sacred Kalpataru Woods", callback_data=f"wiz_gen:en:{name}:{age}:sacred forest:wisdom")
                     ],
                     [
-                        InlineKeyboardButton("🏰 Castle of Dreams", callback_data=f"wiz_gen:en:{name}:{age}:castle of dreams:kindness"),
-                        InlineKeyboardButton("🦕 Gentle Dinosaur", callback_data=f"wiz_gen:en:{name}:{age}:gentle dinosaur:friendship")
+                        InlineKeyboardButton("☁️ Realm Above the Clouds", callback_data=f"wiz_gen:en:{name}:{age}:cloud realm:wonder"),
+                        InlineKeyboardButton("🏮 Valley of Glowing Fireflies", callback_data=f"wiz_gen:en:{name}:{age}:glowing fireflies:patience")
+                    ],
+                    [
+                        InlineKeyboardButton("🌌 Journey to Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:curiosity")
                     ],
                     [
                         InlineKeyboardButton("🔙 Back", callback_data=f"wiz_back_child:{lang}")

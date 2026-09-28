@@ -46,15 +46,74 @@ class TestOmniForgeEngine(unittest.TestCase):
         self.assertEqual(res_status["status"], "success")
 
     def test_bedtime_story_fallback(self):
-        """Verifies script fallback generation for both age tiers."""
+        """Verifies script fallback generation for both age tiers and languages."""
         cartridge = BedtimeStoryCartridge()
-        script_2yo = cartridge._generate_fallback_script("Maya", 2, "clouds", "gentleness")
+        # Toddler test
+        script_2yo = cartridge._generate_fallback_script("Maya", 2, "awan", "kelembutan", is_id=True, archetype="negeri_atas_awan")
         self.assertIn("Maya", script_2yo)
-        self.assertIn("clouds", script_2yo)
+        self.assertIn("awan", script_2yo)
+        self.assertGreaterEqual(len(script_2yo.split()), 380)
 
-        script_8yo = cartridge._generate_fallback_script("Leo", 8, "space", "courage")
+        # Older kids test
+        script_8yo = cartridge._generate_fallback_script("Leo", 8, "space", "courage", is_id=False, archetype="bintang_kejora")
         self.assertIn("Leo", script_8yo)
         self.assertIn("space", script_8yo)
+        self.assertGreaterEqual(len(script_8yo.split()), 650)
+
+    def test_v2_archetype_selection(self):
+        """Verifies Indonesian storytelling archetypes map accurately to themes."""
+        cartridge = BedtimeStoryCartridge()
+        # Pinisi boat / sea
+        self.assertEqual(cartridge._select_archetype("perahu pinisi"), "perahu_pinisi")
+        self.assertEqual(cartridge._select_archetype("starlight boat"), "perahu_pinisi")
+
+        # Kalpataru / forest
+        self.assertEqual(cartridge._select_archetype("hutan rimba"), "hutan_kalpataru")
+        self.assertEqual(cartridge._select_archetype("sacred tree"), "hutan_kalpataru")
+
+        # Negeri di atas awan
+        self.assertEqual(cartridge._select_archetype("negeri awan"), "negeri_atas_awan")
+        self.assertEqual(cartridge._select_archetype("misty mountains"), "negeri_atas_awan")
+
+        # Lentera kunang-kunang
+        self.assertEqual(cartridge._select_archetype("lentera kunang"), "lentera_kunang_kunang")
+        self.assertEqual(cartridge._select_archetype("river firefly"), "lentera_kunang_kunang")
+
+        # Bintang kejora
+        self.assertEqual(cartridge._select_archetype("bintang kejora"), "bintang_kejora")
+        self.assertEqual(cartridge._select_archetype("cosmic stars"), "bintang_kejora")
+
+    def test_v2_all_archetypes_word_counts_and_somatic_cues(self):
+        """Verifies all 20 archetypes satisfy word budget and somatic breathing cues."""
+        from cartridges.story_library import TEMPLATES, get_story_fallback
+
+        for (lang, tier, arch), fn in TEMPLATES.items():
+            age = 2 if tier == "toddler" else 8
+            is_id = (lang == "id")
+            script = get_story_fallback(arch, age, is_id, "Maya", "bintang", "kebaikan")
+            wc = len(script.split())
+
+            # Word count bounds: Toddler (380-460), Older (650-760)
+            min_wc = 380 if tier == "toddler" else 650
+            max_wc = 460 if tier == "toddler" else 760
+            self.assertGreaterEqual(
+                wc, min_wc,
+                f"{lang}_{tier}_{arch} too short: {wc} words (expected >= {min_wc})"
+            )
+            self.assertLessEqual(
+                wc, max_wc,
+                f"{lang}_{tier}_{arch} too long: {wc} words (expected <= {max_wc})"
+            )
+
+            # Breathing pauses check
+            self.assertIn("...", script, f"{lang}_{tier}_{arch} missing breathing pauses")
+
+            # Somatic relaxation cues check
+            if is_id:
+                has_somatic = any(k in script.lower() for k in ["napas", "kelopak mata", "empuk", "pejamkan", "tidur"])
+            else:
+                has_somatic = any(k in script.lower() for k in ["breath", "eyelids", "cozy", "close your eyes", "sleep"])
+            self.assertTrue(has_somatic, f"{lang}_{tier}_{arch} missing somatic cues")
 
     def test_bot_interactive_keyboards(self):
         """Verifies all interactive keyboards generate valid Telegram buttons under 64 bytes."""
