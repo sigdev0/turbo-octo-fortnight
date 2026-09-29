@@ -48,6 +48,9 @@ class OmniForgeBot:
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.user_prefs_file = DATA_DIR / "user_preferences.json"
         self.user_languages: Dict[str, str] = self._load_user_preferences()
+        self.user_profiles_file = DATA_DIR / "user_profiles.json"
+        self.user_profiles: Dict[str, Dict[str, Any]] = self._load_user_profiles()
+        self.user_states: Dict[str, Dict[str, Any]] = {}
         self.load_cartridges()
 
     def _load_user_preferences(self) -> Dict[str, str]:
@@ -65,6 +68,96 @@ class OmniForgeBot:
                 json.dump(self.user_languages, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save user preferences: {e}")
+
+    def _load_user_profiles(self) -> Dict[str, Dict[str, Any]]:
+        if self.user_profiles_file.exists():
+            try:
+                with open(self.user_profiles_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load user profiles: {e}")
+        return {}
+
+    def _save_user_profiles(self) -> None:
+        try:
+            with open(self.user_profiles_file, "w", encoding="utf-8") as f:
+                json.dump(self.user_profiles, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save user profiles: {e}")
+
+    def get_user_profile(self, user_id: str) -> Dict[str, Any]:
+        return self.user_profiles.get(str(user_id), {})
+
+    def get_active_child(self, user_id: str) -> Optional[Dict[str, Any]]:
+        prof = self.get_user_profile(user_id)
+        story_data = prof.get("bedtime_story", {})
+        children = story_data.get("children", [])
+        if not children:
+            return None
+        active_id = story_data.get("active_child_id")
+        for c in children:
+            if c.get("id") == active_id:
+                return c
+        return children[0]
+
+    def save_child_profile(
+        self,
+        user_id: str,
+        name: str,
+        age: int,
+        gender: str = "girl",
+        child_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        uid = str(user_id)
+        if uid not in self.user_profiles:
+            user_lang = self.user_languages.get(uid, "id")
+            self.user_profiles[uid] = {
+                "language": user_lang,
+                "bedtime_story": {"children": []}
+            }
+        story_data = self.user_profiles[uid].setdefault("bedtime_story", {"children": []})
+        children = story_data.setdefault("children", [])
+
+        if not child_id:
+            child_id = f"c_{len(children) + 1}"
+            child = {
+                "id": child_id,
+                "name": name.strip().capitalize(),
+                "age": int(age),
+                "gender": gender.lower().strip()
+            }
+            children.append(child)
+        else:
+            child = next((c for c in children if c.get("id") == child_id), None)
+            if child:
+                child.update({
+                    "name": name.strip().capitalize(),
+                    "age": int(age),
+                    "gender": gender.lower().strip()
+                })
+            else:
+                child = {
+                    "id": child_id,
+                    "name": name.strip().capitalize(),
+                    "age": int(age),
+                    "gender": gender.lower().strip()
+                }
+                children.append(child)
+
+        story_data["active_child_id"] = child_id
+        self._save_user_profiles()
+        return child
+
+    def switch_active_child(self, user_id: str, child_id: str) -> bool:
+        uid = str(user_id)
+        if uid in self.user_profiles and "bedtime_story" in self.user_profiles[uid]:
+            story_data = self.user_profiles[uid]["bedtime_story"]
+            children = story_data.get("children", [])
+            if any(c.get("id") == child_id for c in children):
+                story_data["active_child_id"] = child_id
+                self._save_user_profiles()
+                return True
+        return False
 
     def resolve_user_language(self, update: Optional[Update] = None, explicit_lang: Optional[str] = None) -> str:
         """
@@ -162,8 +255,19 @@ class OmniForgeBot:
         )
         toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
         target_lang = "en" if lang == "id" else "id"
+        story_label = "🌙 Cerita Tidur Anak" if lang == "id" else "🌙 Bedtime Story"
+        morning_label = "☀️ Afirmasi Pagi" if lang == "id" else "☀️ Morning Boost"
+        prof_label = "👤 Profil Anak" if lang == "id" else "👤 Child Profile"
+
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")]
+            [
+                InlineKeyboardButton(story_label, callback_data="wiz_menu_story"),
+                InlineKeyboardButton(morning_label, callback_data="wiz_menu_morning")
+            ],
+            [
+                InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")
+            ]
         ])
         await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
 
@@ -273,6 +377,134 @@ class OmniForgeBot:
             logger.error(f"Error in idea_command: {e}", exc_info=True)
             await status_msg.edit_text(f"❌ *AutoForge execution failed:* {str(e)}", parse_mode="Markdown")
 
+    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._is_user_authorized(update):
+            return
+        user = update.effective_user
+        uid = str(user.id) if user else "anon"
+        user_lang = self.resolve_user_language(update)
+        active_child = self.get_active_child(uid)
+        prof = self.get_user_profile(uid)
+        children = prof.get("bedtime_story", {}).get("children", [])
+
+        if not children or not active_child:
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Mulai Pengaturan Profil" if user_lang == "id" else "➕ Start Profile Setup", callback_data="prof_add")]
+            ])
+            await update.message.reply_text(t("profile_no_child", user_lang), reply_markup=kb, parse_mode="Markdown")
+            return
+
+        gender_label = "👧 Putri" if active_child.get("gender") in ("girl", "putri", "female") else "👦 Putra"
+        if user_lang == "en":
+            gender_label = "👧 Girl" if active_child.get("gender") in ("girl", "putri", "female") else "👦 Boy"
+
+        msg = t(
+            "profile_menu_title",
+            user_lang,
+            name=active_child["name"],
+            age=active_child["age"],
+            gender=gender_label,
+            total=len(children)
+        )
+        kb = self._get_profile_keyboard(uid, user_lang)
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+
+    async def start_story_wizard(
+        self,
+        update: Update,
+        context: Optional[ContextTypes.DEFAULT_TYPE] = None,
+        force_lang: Optional[str] = None
+    ) -> None:
+        user = update.effective_user
+        uid = str(user.id) if user else "anon"
+        user_lang = force_lang or self.resolve_user_language(update)
+        active_child = self.get_active_child(uid)
+
+        # 1st Attempt: No child profile saved -> trigger 1-time scoped onboarding
+        if not active_child:
+            self.user_states[uid] = {
+                "state": "bedtime_story_onboarding",
+                "step": "name",
+                "lang": user_lang
+            }
+            prompt = t("onboarding_welcome", user_lang)
+            if update.callback_query:
+                await update.callback_query.edit_message_text(prompt, parse_mode="Markdown")
+            elif update.message:
+                await update.message.reply_text(prompt, parse_mode="Markdown")
+            return
+
+        # 2nd+ Attempt: Child profile exists -> Skip demographics! Jump straight to curiosity prompt!
+        self.user_states[uid] = {
+            "state": "bedtime_story_curiosity",
+            "child_id": active_child["id"],
+            "lang": user_lang
+        }
+        prompt = t("story_curiosity_prompt", user_lang, name=active_child["name"])
+        kb = self._get_theme_keyboard(user_lang, active_child["name"], active_child["age"])
+        if update.callback_query:
+            await update.callback_query.edit_message_text(prompt, reply_markup=kb, parse_mode="Markdown")
+        elif update.message:
+            await update.message.reply_text(prompt, reply_markup=kb, parse_mode="Markdown")
+
+    async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message or not update.message.text:
+            return
+        if not self._is_user_authorized(update):
+            return
+
+        text = update.message.text.strip()
+        user = update.effective_user
+        uid = str(user.id) if user else "anon"
+        user_lang = self.resolve_user_language(update)
+        state_info = self.user_states.get(uid, {})
+        curr_state = state_info.get("state")
+
+        # 1. Onboarding: Capturing Child Name
+        if curr_state == "bedtime_story_onboarding" and state_info.get("step") == "name":
+            child_name = text.split()[0].capitalize()
+            self.user_states[uid]["name"] = child_name
+            self.user_states[uid]["step"] = "age"
+            prompt = t("onboarding_ask_age", user_lang, name=child_name)
+            kb = self._get_onboarding_age_keyboard(user_lang)
+            await update.message.reply_text(prompt, reply_markup=kb, parse_mode="Markdown")
+            return
+
+        # 2. Returning Parent Curiosity Mode / Direct Typed Input
+        active_child = self.get_active_child(uid)
+        if curr_state == "bedtime_story_curiosity" or (active_child and not text.startswith("/")):
+            child_name = active_child["name"]
+            child_age = active_child["age"]
+            prompt_theme = text
+            lesson = "kesabaran dan kebaikan" if user_lang == "id" else "patience and kindness"
+
+            # Clear state
+            self.user_states.pop(uid, None)
+
+            status_msg = await update.message.reply_text(
+                f"🌙 *Malam ini untuk {child_name}:* _{prompt_theme}_\n⏳ Merangkai dongeng tidur..."
+                if user_lang == "id" else
+                f"🌙 *Tonight's journey for {child_name}:* _{prompt_theme}_\n⏳ Weaving bedtime story...",
+                parse_mode="Markdown"
+            )
+            payload = {
+                "lang": user_lang,
+                "name": child_name,
+                "age": child_age,
+                "theme": prompt_theme,
+                "lesson": lesson
+            }
+            await self._execute_and_send_cartridge(
+                target_message=update.message,
+                cmd="story",
+                payload=payload,
+                status_msg=status_msg
+            )
+            return
+
+        # 3. Default friendly hint if no state and no registered child
+        await update.message.reply_text(t("text_hint_no_state", user_lang), parse_mode="Markdown")
+
     def _store_session(self, data: Dict[str, Any]) -> str:
         """Stores a short-lived interaction session for callback queries."""
         self.session_counter += 1
@@ -295,35 +527,98 @@ class OmniForgeBot:
             ]
         ])
 
-    def _get_child_keyboard(self, lang: str = "id") -> InlineKeyboardMarkup:
+    def _get_onboarding_age_keyboard(self, lang: str = "id") -> InlineKeyboardMarkup:
+        label_yo = "thn" if lang == "id" else "yo"
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"🍼 1-2 {label_yo}", callback_data="onb_age:2"),
+                InlineKeyboardButton(f"🧸 3 {label_yo}", callback_data="onb_age:3"),
+                InlineKeyboardButton(f"🎈 4 {label_yo}", callback_data="onb_age:4")
+            ],
+            [
+                InlineKeyboardButton(f"🎨 5 {label_yo}", callback_data="onb_age:5"),
+                InlineKeyboardButton(f"🚀 6 {label_yo}", callback_data="onb_age:6"),
+                InlineKeyboardButton(f"🌟 7 {label_yo}", callback_data="onb_age:7")
+            ],
+            [
+                InlineKeyboardButton(f"📚 8+ {label_yo}", callback_data="onb_age:8")
+            ]
+        ])
+
+    def _get_onboarding_gender_keyboard(self, lang: str = "id") -> InlineKeyboardMarkup:
         if lang == "id":
             return InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("👧 Maya (Usia 2 thn)", callback_data="wiz_child:id:Maya:2"),
-                    InlineKeyboardButton("👦 Leo (Usia 8 thn)", callback_data="wiz_child:id:Leo:8")
-                ],
-                [
-                    InlineKeyboardButton("✏️ Kustom (Ketik Sendiri)", callback_data="wiz_custom:id")
-                ],
-                [
-                    InlineKeyboardButton("🔙 Ganti Bahasa", callback_data="wiz_back_lang")
+                    InlineKeyboardButton("👧 Putri", callback_data="onb_gen:girl"),
+                    InlineKeyboardButton("👦 Putra", callback_data="onb_gen:boy")
                 ]
             ])
         else:
             return InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("👧 Maya (Age 2)", callback_data="wiz_child:en:Maya:2"),
-                    InlineKeyboardButton("👦 Leo (Age 8)", callback_data="wiz_child:en:Leo:8")
-                ],
-                [
-                    InlineKeyboardButton("✏️ Custom (Type Command)", callback_data="wiz_custom:en")
-                ],
-                [
-                    InlineKeyboardButton("🔙 Change Language", callback_data="wiz_back_lang")
+                    InlineKeyboardButton("👧 Girl", callback_data="onb_gen:girl"),
+                    InlineKeyboardButton("👦 Boy", callback_data="onb_gen:boy")
                 ]
             ])
 
+    def _get_profile_keyboard(self, user_id: str, lang: str = "id") -> InlineKeyboardMarkup:
+        prof = self.get_user_profile(user_id)
+        children = prof.get("bedtime_story", {}).get("children", [])
+        active_id = prof.get("bedtime_story", {}).get("active_child_id")
+        buttons = []
+        for c in children:
+            cid = c.get("id")
+            name = c.get("name")
+            age = c.get("age")
+            is_active = (cid == active_id)
+            label = f"{'⭐' if is_active else '👤'} {name} ({age} {'thn' if lang == 'id' else 'yo'})"
+            buttons.append([InlineKeyboardButton(label, callback_data=f"prof_sw:{cid}")])
+
+        add_label = "➕ Tambah Profil Anak" if lang == "id" else "➕ Add Sibling Profile"
+        back_label = "🌙 Mulai Dongeng" if lang == "id" else "🌙 Start Story"
+        buttons.append([InlineKeyboardButton(add_label, callback_data="prof_add")])
+        buttons.append([InlineKeyboardButton(back_label, callback_data="wiz_menu_story")])
+        return InlineKeyboardMarkup(buttons)
+
+    def _get_child_keyboard(self, lang: str = "id", user_id: Optional[str] = None) -> InlineKeyboardMarkup:
+        buttons = []
+        if user_id:
+            prof = self.get_user_profile(user_id)
+            children = prof.get("bedtime_story", {}).get("children", [])
+            for c in children:
+                name = c.get("name")
+                age = c.get("age")
+                gender_icon = "👧" if c.get("gender") in ("girl", "putri", "female") else "👦"
+                label = f"{gender_icon} {name} ({age} {'thn' if lang == 'id' else 'yo'})"
+                buttons.append([InlineKeyboardButton(label, callback_data=f"wiz_child:{lang}:{name}:{age}")])
+
+        if not buttons:
+            if lang == "id":
+                buttons = [
+                    [
+                        InlineKeyboardButton("👧 Maya (Usia 2 thn)", callback_data="wiz_child:id:Maya:2"),
+                        InlineKeyboardButton("👦 Leo (Usia 8 thn)", callback_data="wiz_child:id:Leo:8")
+                    ]
+                ]
+            else:
+                buttons = [
+                    [
+                        InlineKeyboardButton("👧 Maya (Age 2)", callback_data="wiz_child:en:Maya:2"),
+                        InlineKeyboardButton("👦 Leo (Age 8)", callback_data="wiz_child:en:Leo:8")
+                    ]
+                ]
+
+        add_label = "➕ Atur Profil Baru" if lang == "id" else "➕ Setup New Child"
+        custom_label = "✏️ Kustom (Ketik Sendiri)" if lang == "id" else "✏️ Custom (Type Command)"
+        back_label = "🔙 Ganti Bahasa" if lang == "id" else "🔙 Change Language"
+        buttons.append([InlineKeyboardButton(add_label, callback_data="prof_add")])
+        buttons.append([InlineKeyboardButton(custom_label, callback_data=f"wiz_custom:{lang}")])
+        buttons.append([InlineKeyboardButton(back_label, callback_data="wiz_back_lang")])
+        return InlineKeyboardMarkup(buttons)
+
     def _get_theme_keyboard(self, lang: str, name: str, age: int) -> InlineKeyboardMarkup:
+        back_label = "🔙 Kembali" if lang == "id" else "🔙 Back"
+        prof_label = "👤 Profil Anak" if lang == "id" else "👤 Switch Child"
         if lang == "id":
             if age <= 3:
                 buttons = [
@@ -336,10 +631,19 @@ class OmniForgeBot:
                         InlineKeyboardButton("🏮 Lentera Kunang-Kunang", callback_data=f"wiz_gen:id:{name}:{age}:lentera kunang:ketenteraman")
                     ],
                     [
-                        InlineKeyboardButton("⭐ Bintang Kejora Lembut", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:kasih sayang")
+                        InlineKeyboardButton("⭐ Bintang Kejora Lembut", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:kasih sayang"),
+                        InlineKeyboardButton("🏛️ Candi Borobudur Damai", callback_data=f"wiz_gen:id:{name}:{age}:candi borobudur:ketenangan")
                     ],
                     [
-                        InlineKeyboardButton("🔙 Kembali", callback_data=f"wiz_back_child:{lang}")
+                        InlineKeyboardButton("🌊 Telaga Danau Toba", callback_data=f"wiz_gen:id:{name}:{age}:danau toba:kedamaian"),
+                        InlineKeyboardButton("🐎 Sabana Bromo Berbisik", callback_data=f"wiz_gen:id:{name}:{age}:sabana bromo:kehangatan")
+                    ],
+                    [
+                        InlineKeyboardButton("🚂 Kereta Uap Rimba", callback_data=f"wiz_gen:id:{name}:{age}:kereta rimba:rasa aman")
+                    ],
+                    [
+                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                        InlineKeyboardButton(back_label, callback_data=f"wiz_back_child:{lang}")
                     ]
                 ]
             else:
@@ -353,10 +657,19 @@ class OmniForgeBot:
                         InlineKeyboardButton("🏮 Lembah Kunang-Kunang", callback_data=f"wiz_gen:id:{name}:{age}:lembah kunang:kejujuran")
                     ],
                     [
-                        InlineKeyboardButton("🌌 Menembus Bintang Kejora", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:imajinasi")
+                        InlineKeyboardButton("🌌 Menembus Bintang Kejora", callback_data=f"wiz_gen:id:{name}:{age}:bintang kejora:imajinasi"),
+                        InlineKeyboardButton("🏛️ Misteri Relief Borobudur", callback_data=f"wiz_gen:id:{name}:{age}:candi borobudur:kebajikan")
                     ],
                     [
-                        InlineKeyboardButton("🔙 Kembali", callback_data=f"wiz_back_child:{lang}")
+                        InlineKeyboardButton("🌊 Kaldera Danau Toba", callback_data=f"wiz_gen:id:{name}:{age}:danau toba:keteguhan"),
+                        InlineKeyboardButton("🐎 Pasir Berbisik Bromo", callback_data=f"wiz_gen:id:{name}:{age}:sabana bromo:keberanian")
+                    ],
+                    [
+                        InlineKeyboardButton("🚂 Kereta Rimba Nusantara", callback_data=f"wiz_gen:id:{name}:{age}:kereta rimba:kesabaran")
+                    ],
+                    [
+                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                        InlineKeyboardButton(back_label, callback_data=f"wiz_back_child:{lang}")
                     ]
                 ]
         else:
@@ -371,10 +684,19 @@ class OmniForgeBot:
                         InlineKeyboardButton("🏮 Firefly Lantern River", callback_data=f"wiz_gen:en:{name}:{age}:firefly lantern:calmness")
                     ],
                     [
-                        InlineKeyboardButton("⭐ Gentle Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:comfort")
+                        InlineKeyboardButton("⭐ Gentle Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:comfort"),
+                        InlineKeyboardButton("🏛️ Peaceful Borobudur", callback_data=f"wiz_gen:en:{name}:{age}:borobudur temple:peace")
                     ],
                     [
-                        InlineKeyboardButton("🔙 Back", callback_data=f"wiz_back_child:{lang}")
+                        InlineKeyboardButton("🌊 Azure Lake Toba", callback_data=f"wiz_gen:en:{name}:{age}:lake toba:tranquility"),
+                        InlineKeyboardButton("🐎 Whispering Bromo", callback_data=f"wiz_gen:en:{name}:{age}:bromo savanna:warmth")
+                    ],
+                    [
+                        InlineKeyboardButton("🚂 Rainforest Steam Train", callback_data=f"wiz_gen:en:{name}:{age}:rainforest train:comfort")
+                    ],
+                    [
+                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                        InlineKeyboardButton(back_label, callback_data=f"wiz_back_child:{lang}")
                     ]
                 ]
             else:
@@ -385,13 +707,22 @@ class OmniForgeBot:
                     ],
                     [
                         InlineKeyboardButton("☁️ Realm Above the Clouds", callback_data=f"wiz_gen:en:{name}:{age}:cloud realm:wonder"),
-                        InlineKeyboardButton("🏮 Valley of Glowing Fireflies", callback_data=f"wiz_gen:en:{name}:{age}:glowing fireflies:patience")
+                        InlineKeyboardButton("🏮 Glowing Firefly Valley", callback_data=f"wiz_gen:en:{name}:{age}:glowing fireflies:patience")
                     ],
                     [
-                        InlineKeyboardButton("🌌 Journey to Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:curiosity")
+                        InlineKeyboardButton("🌌 Journey to Morning Star", callback_data=f"wiz_gen:en:{name}:{age}:morning star:curiosity"),
+                        InlineKeyboardButton("🏛️ Reliefs of Borobudur", callback_data=f"wiz_gen:en:{name}:{age}:borobudur temple:wisdom")
                     ],
                     [
-                        InlineKeyboardButton("🔙 Back", callback_data=f"wiz_back_child:{lang}")
+                        InlineKeyboardButton("🌊 Caldera of Lake Toba", callback_data=f"wiz_gen:en:{name}:{age}:lake toba:peace"),
+                        InlineKeyboardButton("🐎 Whispering Sands Bromo", callback_data=f"wiz_gen:en:{name}:{age}:bromo sands:courage")
+                    ],
+                    [
+                        InlineKeyboardButton("🚂 Rainforest Express", callback_data=f"wiz_gen:en:{name}:{age}:rainforest express:patience")
+                    ],
+                    [
+                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                        InlineKeyboardButton(back_label, callback_data=f"wiz_back_child:{lang}")
                     ]
                 ]
         return InlineKeyboardMarkup(buttons)
@@ -546,13 +877,7 @@ class OmniForgeBot:
             # Flow 1: If no args given -> launch interactive wizard in user's language!
             if not args:
                 wizard_lang = "id" if raw_cmd == "cerita" else user_lang
-                prompt_text = t("wiz_child_prompt", wizard_lang)
-                await update.message.reply_text(
-                    prompt_text,
-                    reply_markup=self._get_child_keyboard(wizard_lang),
-                    parse_mode="Markdown"
-                )
-                return
+                return await self.start_story_wizard(update, context, force_lang=wizard_lang)
 
             # Args given: parse them
             if len(args) >= 1:
@@ -677,7 +1002,109 @@ class OmniForgeBot:
         prefix = parts[0]
 
         try:
-            if prefix == "set_lang":
+            if prefix == "wiz_menu_story":
+                await self.start_story_wizard(update, context)
+
+            elif prefix == "wiz_menu_morning":
+                user_lang = self.resolve_user_language(update)
+                await query.edit_message_text(
+                    t("wiz_morning_prompt", user_lang),
+                    reply_markup=self._get_morning_keyboard(),
+                    parse_mode="Markdown"
+                )
+
+            elif prefix == "wiz_menu_profile":
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+                active_child = self.get_active_child(uid)
+                prof = self.get_user_profile(uid)
+                children = prof.get("bedtime_story", {}).get("children", [])
+                if not children or not active_child:
+                    kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("➕ Mulai Pengaturan Profil" if user_lang == "id" else "➕ Start Profile Setup", callback_data="prof_add")]
+                    ])
+                    await query.edit_message_text(t("profile_no_child", user_lang), reply_markup=kb, parse_mode="Markdown")
+                else:
+                    gender_label = "👧 Putri" if active_child.get("gender") in ("girl", "putri", "female") else "👦 Putra"
+                    if user_lang == "en":
+                        gender_label = "👧 Girl" if active_child.get("gender") in ("girl", "putri", "female") else "👦 Boy"
+                    msg = t(
+                        "profile_menu_title",
+                        user_lang,
+                        name=active_child["name"],
+                        age=active_child["age"],
+                        gender=gender_label,
+                        total=len(children)
+                    )
+                    kb = self._get_profile_keyboard(uid, user_lang)
+                    await query.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "onb_age":
+                age = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 4
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+                self.user_states.setdefault(uid, {})
+                self.user_states[uid]["age"] = age
+                self.user_states[uid]["step"] = "gender"
+                child_name = self.user_states[uid].get("name", "Little Explorer")
+                prompt = t("onboarding_ask_gender", user_lang, name=child_name)
+                kb = self._get_onboarding_gender_keyboard(user_lang)
+                await query.edit_message_text(prompt, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "onb_gen":
+                gender = parts[1] if len(parts) > 1 else "girl"
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+                st = self.user_states.get(uid, {})
+                child_name = st.get("name", "Little Explorer")
+                child_age = st.get("age", 4)
+                child = self.save_child_profile(uid, child_name, child_age, gender)
+                self.user_states[uid] = {
+                    "state": "bedtime_story_curiosity",
+                    "child_id": child["id"],
+                    "lang": user_lang
+                }
+                gender_str = "Putri" if gender == "girl" else "Putra"
+                if user_lang == "en":
+                    gender_str = "Girl" if gender == "girl" else "Boy"
+                conf_text = t("onboarding_success", user_lang, name=child_name, age=child_age, gender=gender_str)
+                curiosity_text = t("story_curiosity_prompt", user_lang, name=child_name)
+                kb = self._get_theme_keyboard(user_lang, child_name, child_age)
+                await query.edit_message_text(f"{conf_text}\n\n{curiosity_text}", reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "prof_sw":
+                cid = parts[1] if len(parts) > 1 else ""
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+                self.switch_active_child(uid, cid)
+                active_child = self.get_active_child(uid)
+                if active_child:
+                    self.user_states[uid] = {
+                        "state": "bedtime_story_curiosity",
+                        "child_id": active_child["id"],
+                        "lang": user_lang
+                    }
+                    succ_msg = t("profile_switched", user_lang, name=active_child["name"], age=active_child["age"])
+                    curiosity_prompt = t("story_curiosity_prompt", user_lang, name=active_child["name"])
+                    kb = self._get_theme_keyboard(user_lang, active_child["name"], active_child["age"])
+                    await query.edit_message_text(f"{succ_msg}\n\n{curiosity_prompt}", reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "prof_add":
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+                self.user_states[uid] = {
+                    "state": "bedtime_story_onboarding",
+                    "step": "name",
+                    "lang": user_lang
+                }
+                await query.edit_message_text(t("onboarding_welcome", user_lang), parse_mode="Markdown")
+
+            elif prefix == "set_lang":
                 new_lang = parts[1] if len(parts) > 1 else "id"
                 user = update.effective_user
                 if user:
@@ -820,6 +1247,8 @@ class OmniForgeBot:
         self.app.add_handler(CommandHandler("lang", self.lang_command))
         self.app.add_handler(CommandHandler("reload", self.reload_command))
         self.app.add_handler(CommandHandler("idea", self.idea_command))
+        self.app.add_handler(CommandHandler("profile", self.profile_command))
+        self.app.add_handler(CommandHandler("profil", self.profile_command))
 
         # Dynamic cartridge commands
         for cmd in self.cartridges.keys():
@@ -832,6 +1261,9 @@ class OmniForgeBot:
 
         # Interactive Callback Query Handler
         self.app.add_handler(CallbackQueryHandler(self.handle_callback_query))
+
+        # Contextual Text Message Handler (Onboarding child name & Direct theme input)
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_message))
 
         return self.app
 
@@ -870,6 +1302,18 @@ class OmniForgeBot:
                 "status": "success",
                 "command": cmd,
                 "active_cartridges": list(self.cartridges.keys())
+            }
+
+        if cmd in ("profile", "profil"):
+            user_id = args[0] if args else "sim_user_1"
+            active_child = self.get_active_child(user_id)
+            prof = self.get_user_profile(user_id)
+            return {
+                "status": "success",
+                "command": cmd,
+                "user_id": user_id,
+                "active_child": active_child,
+                "children": prof.get("bedtime_story", {}).get("children", [])
             }
 
         if cmd == "idea":

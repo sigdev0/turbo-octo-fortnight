@@ -37,7 +37,8 @@ class BedtimeStoryCartridge(BaseCartridge):
         id_keywords = {
             "hutan", "awan", "bintang", "bulan", "hewan", "kebaikan",
             "kesabaran", "keberanian", "tidur", "mimpi", "sahabat",
-            "perahu", "laut", "pantai", "sungai", "kunang", "kejora"
+            "perahu", "laut", "pantai", "sungai", "kunang", "kejora",
+            "candi", "borobudur", "danau", "toba", "bromo", "sabana", "kereta", "rimba"
         }
         words = set((theme + " " + lesson).lower().split())
         return bool(words & id_keywords)
@@ -47,19 +48,31 @@ class BedtimeStoryCartridge(BaseCartridge):
         Selects an authentic storytelling archetype based on theme keywords or deterministic variety.
         """
         th = theme.lower()
-        if any(k in th for k in ["laut", "pantai", "ombak", "perahu", "pinisi", "pulau", "air", "sea", "ocean", "boat", "sail", "water", "island", "beach", "waves"]):
+        if any(k in th for k in ["candi", "borobudur", "stupa", "menoreh", "relief", "temple"]):
+            return "candi_borobudur"
+        if any(k in th for k in ["danau", "toba", "samosir", "ikan mas", "kaldera", "lake", "crater"]):
+            return "danau_toba"
+        if any(k in th for k in ["bromo", "sabana", "savana", "pasir berbisik", "tengger", "whispering sand", "kuda", "horse"]):
+            return "sabana_bromo"
+        if any(k in th for k in ["kereta", "uap", "rel", "masinis", "kondektur", "gerbong", "train", "railway", "locomotive", "express"]):
+            return "kereta_rimba"
+        if any(k in th for k in ["laut", "pantai", "ombak", "perahu", "pinisi", "pulau", "sea", "ocean", "boat", "sail", "island", "beach", "waves"]):
             return "perahu_pinisi"
-        if any(k in th for k in ["hutan", "pohon", "hewan", "kancil", "rusa", "cendrawasih", "taman", "burung", "forest", "jungle", "tree", "animals", "creatures", "woods", "garden"]):
+        if any(k in th for k in ["hutan", "rimba", "pohon", "hewan", "kancil", "rusa", "cendrawasih", "taman", "burung", "forest", "jungle", "tree", "animals", "creatures", "woods", "garden"]):
             return "hutan_kalpataru"
         if any(k in th for k in ["awan", "langit", "gunung", "kabut", "teh", "melati", "angin", "sejuk", "cloud", "sky", "mountain", "mist", "wind", "breeze", "tea", "jasmine"]):
             return "negeri_atas_awan"
-        if any(k in th for k in ["sungai", "kunang", "lentera", "cahaya", "rawa", "danau", "river", "firefly", "lantern", "glow", "stream", "lake", "swamp"]):
+        if any(k in th for k in ["sungai", "kunang", "lentera", "cahaya", "rawa", "river", "firefly", "lantern", "glow", "stream", "swamp"]):
             return "lentera_kunang_kunang"
         if any(k in th for k in ["bintang", "bulan", "angkasa", "antariksa", "kejora", "ruang", "star", "moon", "space", "galaxy", "starlight", "cosmic"]):
             return "bintang_kejora"
 
         # Deterministic variation across different names and themes
-        archetypes = ["perahu_pinisi", "hutan_kalpataru", "negeri_atas_awan", "lentera_kunang_kunang", "bintang_kejora"]
+        archetypes = [
+            "perahu_pinisi", "hutan_kalpataru", "negeri_atas_awan",
+            "lentera_kunang_kunang", "bintang_kejora", "candi_borobudur",
+            "danau_toba", "sabana_bromo", "kereta_rimba"
+        ]
         return archetypes[abs(hash(name + theme)) % len(archetypes)]
 
     def _generate_fallback_script(self, name: str, age: int, theme: str, lesson: str, is_id: bool = True, archetype: str = "negeri_atas_awan") -> str:

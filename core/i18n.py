@@ -160,6 +160,48 @@ MESSAGES: Dict[str, Dict[str, str]] = {
     "morning_lang_prompt": {
         "en": "🌐 *Choose Language for {name}'s Affirmation:*\n• Theme: {theme}",
         "id": "🌐 *Pilih Bahasa Afirmasi {name}:*\n• Tema: {theme}"
+    },
+
+    # Cartridge-Scoped Onboarding Prompts
+    "onboarding_welcome": {
+        "en": "🌙 *Bedtime Story Setup*\n\nLet's set up your child's profile once so bedtime is fast and effortless every night.\n\n👶 *What is your child's first name?*\n_(Please type their name directly in this chat)_",
+        "id": "🌙 *Pengaturan Cerita Tidur Anak*\n\nMari atur profil si kecil satu kali agar dongeng tidur setiap malam bisa langsung diputar tanpa repot.\n\n👶 *Siapa nama panggilan si kecil?*\n_(Ketik namanya langsung di chat ini)_"
+    },
+    "onboarding_ask_age": {
+        "en": "🎂 *How old is {name}?*",
+        "id": "🎂 *Berapa usia {name}?*"
+    },
+    "onboarding_ask_gender": {
+        "en": "✨ *Is {name} a girl or a boy?*",
+        "id": "✨ *Apakah {name} anak perempuan atau laki-laki?*"
+    },
+    "onboarding_success": {
+        "en": "🎉 *Profile saved!* {name} ({age} yo, {gender}) is ready for magical bedtime journeys.",
+        "id": "🎉 *Profil tersimpan!* {name} ({age} thn, {gender}) siap berpetualang di dunia dongeng tidur."
+    },
+
+    # 2nd+ Attempt Returning Parent Curiosity Prompt
+    "story_curiosity_prompt": {
+        "en": "🌙 *What is {name} curious about tonight?*\n\nTap a curated journey below, or type anything directly into this chat (e.g. _\"friendly dragon making soup\"_):",
+        "id": "🌙 *Malam ini {name} sedang penasaran atau ingin berpetualang tentang apa?*\n\nPilih petualangan di bawah, atau ketik langsung topik apa saja di chat ini (misal: _\"dinosaurus membuat kue\"_):"
+    },
+
+    # Profile Management (/profile)
+    "profile_menu_title": {
+        "en": "👤 *Bedtime Story Profiles:*\n\n• Active Child: *{name}* ({age} yrs, {gender})\n• Total Saved: {total} children\n\nManage your children's profiles below:",
+        "id": "👤 *Profil Cerita Tidur Anak:*\n\n• Anak Aktif: *{name}* ({age} thn, {gender})\n• Total Tersimpan: {total} anak\n\nKelola profil anak Anda di bawah ini:"
+    },
+    "profile_no_child": {
+        "en": "👶 No child profile registered yet. Tap `/story` to set up your child's bedtime adventure!",
+        "id": "👶 Belum ada profil anak yang terdaftar. Ketik `/cerita` untuk memulai petualangan dongeng tidur!"
+    },
+    "profile_switched": {
+        "en": "🌟 Active child switched to *{name}* ({age} yo)!",
+        "id": "🌟 Profil anak aktif dialihkan ke *{name}* ({age} thn)!"
+    },
+    "text_hint_no_state": {
+        "en": "💡 Type `/story` for personalized bedtime stories, or `/start` to see all available tools.",
+        "id": "💡 Ketik `/cerita` untuk dongeng tidur anak, atau `/start` untuk menu utama OmniForge."
     }
 }
 
