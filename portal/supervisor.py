@@ -5,6 +5,7 @@ live journalctl log streaming, and Antigravity CLI prompt dispatching.
 """
 
 import asyncio
+import json
 import os
 import platform
 import shutil
