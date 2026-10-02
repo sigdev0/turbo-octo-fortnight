@@ -122,6 +122,22 @@ async def get_cartridges():
 
 
 # ---------------------------------------------------------
+# REST APIs: Agent Session & Continuation
+# ---------------------------------------------------------
+
+@app.get("/api/agent/session")
+async def get_agent_session():
+    """Returns the current active conversation ID and transcript history for cross-device sync."""
+    return supervisor.get_agent_session()
+
+
+@app.post("/api/agent/session/new")
+async def reset_agent_session():
+    """Clears current active conversation to start a fresh thread."""
+    return supervisor.clear_agent_session()
+
+
+# ---------------------------------------------------------
 # WebSockets: Real-time Live Log Stream & Agent Dispatcher
 # ---------------------------------------------------------
 
@@ -147,7 +163,7 @@ async def websocket_logs(websocket: WebSocket, service_name: str):
 async def websocket_agent_dispatch(websocket: WebSocket):
     """
     Receives prompt tasks from the web portal, spawns Antigravity CLI,
-    and streams stdout and thoughts in real time.
+    and streams stdout and thoughts in real time with session continuation.
     """
     await websocket.accept()
     logger.info("WebSocket client connected to Agent Dispatcher")
@@ -159,16 +175,26 @@ async def websocket_agent_dispatch(websocket: WebSocket):
                 prompt = data.get("prompt", "").strip()
                 model = data.get("model", "gemini-3.8-flash-medium")
                 effort = data.get("effort", "low")
+                continue_session = data.get("continue_session", True)
+                conv_id = data.get("conversation_id")
             except Exception:
                 prompt = data_str.strip()
                 model = "gemini-3.8-flash-medium"
                 effort = "low"
+                continue_session = True
+                conv_id = None
 
             if not prompt:
                 await websocket.send_text("⚠️ Empty prompt received.")
                 continue
 
-            async for chunk in supervisor.run_agent_prompt(prompt, model=model, effort=effort):
+            async for chunk in supervisor.run_agent_prompt(
+                prompt,
+                model=model,
+                effort=effort,
+                conversation_id=conv_id,
+                resume=continue_session,
+            ):
                 await websocket.send_text(chunk)
                 await asyncio.sleep(0.005)
 

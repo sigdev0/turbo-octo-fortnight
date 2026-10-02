@@ -32,6 +32,50 @@ class HomelabSupervisor:
             or str(Path.home() / ".local" / "bin" / "agy")
             or str(Path.home() / ".gemini" / "bin" / "agy")
         )
+        self.data_dir = BASE_DIR / "data"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.session_file = self.data_dir / "portal_agent_session.json"
+        self.active_conversation_id: Optional[str] = None
+        self.session_history: List[Dict[str, Any]] = []
+        self._load_agent_session()
+
+    def _load_agent_session(self) -> None:
+        """Loads persistent session state and history across device connections."""
+        if self.session_file.exists():
+            try:
+                data = json.loads(self.session_file.read_text())
+                self.active_conversation_id = data.get("active_conversation_id")
+                self.session_history = data.get("history", [])
+            except Exception:
+                self.active_conversation_id = None
+                self.session_history = []
+
+    def _save_agent_session(self) -> None:
+        """Persists session state and last 50 turns."""
+        try:
+            payload = {
+                "active_conversation_id": self.active_conversation_id,
+                "history": self.session_history[-50:],
+                "updated_at": time.time()
+            }
+            self.session_file.write_text(json.dumps(payload, indent=2))
+        except Exception:
+            pass
+
+    def get_agent_session(self) -> Dict[str, Any]:
+        """Returns the current active conversation metadata and transcript history."""
+        return {
+            "conversation_id": self.active_conversation_id,
+            "history": self.session_history,
+            "turns_count": len(self.session_history),
+        }
+
+    def clear_agent_session(self) -> Dict[str, Any]:
+        """Resets active conversation to start fresh."""
+        self.active_conversation_id = None
+        self.session_history = []
+        self._save_agent_session()
+        return {"status": "success", "message": "Cleared session. Next prompt will start a new conversation."}
 
     def get_system_metrics(self) -> Dict[str, Any]:
         """Returns comprehensive host CPU, RAM, disk, and load average telemetry."""
@@ -243,24 +287,35 @@ class HomelabSupervisor:
         return files
 
     async def run_agent_prompt(
-        self, prompt: str, cwd: Optional[str] = None, model: str = "gemini-3.8-flash-medium", effort: str = "low"
+        self,
+        prompt: str,
+        cwd: Optional[str] = None,
+        model: str = "gemini-3.8-flash-medium",
+        effort: str = "low",
+        conversation_id: Optional[str] = None,
+        resume: bool = True,
     ) -> AsyncGenerator[str, None]:
         """Dispatches a prompt task to Antigravity CLI and streams the stdout."""
         target_dir = cwd or str(BASE_DIR)
+        target_conv_id = conversation_id or (self.active_conversation_id if resume else None)
+
         cmd = [
             self.agy_bin,
             "--dangerously-skip-permissions",
             "--model", model,
             "--effort", effort,
             "--output-format", "stream-json",
-            "-p", prompt
         ]
+        if target_conv_id:
+            cmd.extend(["--conversation", target_conv_id])
+        cmd.extend(["-p", prompt])
 
         if not Path(self.agy_bin).exists() and not shutil.which(self.agy_bin):
             yield f"❌ Antigravity CLI binary not found at '{self.agy_bin}'."
             return
 
-        yield f"🚀 Launching agent task ({model})...\n💬 Prompt: \"{prompt}\"\n"
+        session_label = f" [Session: {target_conv_id[:8]}...]" if target_conv_id else " [New Session]"
+        yield f"🚀 Launching agent task ({model}){session_label}...\n💬 Prompt: \"{prompt}\"\n"
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -268,6 +323,9 @@ class HomelabSupervisor:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
+
+        accumulated_response: List[str] = []
+        turn_saved = False
 
         try:
             while True:
@@ -284,7 +342,12 @@ class HomelabSupervisor:
                     event_type = event_data.get("event")
 
                     if event_type == "init":
-                        yield f"⚡ Agent initialized in {target_dir}."
+                        init_conv_id = event_data.get("conversation_id")
+                        if init_conv_id:
+                            self.active_conversation_id = init_conv_id
+                            self._save_agent_session()
+                        tag = self.active_conversation_id[:8] if self.active_conversation_id else "active"
+                        yield f"⚡ Agent initialized in {target_dir} (Session: {tag})."
                     elif event_type == "step_update":
                         step = event_data.get("step_update", {})
                         stype = step.get("step_type")
@@ -305,6 +368,7 @@ class HomelabSupervisor:
                         elif stype == "agent_response":
                             delta = step.get("text_delta")
                             if delta:
+                                accumulated_response.append(delta)
                                 yield delta
                         elif stype == "thought":
                             tdelta = step.get("thought_delta")
@@ -313,11 +377,35 @@ class HomelabSupervisor:
                     elif event_type == "result":
                         res = event_data.get("result", {})
                         dur = res.get("duration_seconds", 0)
+                        full_response = "".join(accumulated_response).strip()
+                        turn_record = {
+                            "conversation_id": self.active_conversation_id,
+                            "prompt": prompt,
+                            "response": full_response,
+                            "model": model,
+                            "timestamp": time.time(),
+                            "duration_seconds": round(dur, 2),
+                        }
+                        self.session_history.append(turn_record)
+                        self._save_agent_session()
+                        turn_saved = True
                         yield f"\n🏁 Task completed successfully ({dur:.1f}s)."
                 except json.JSONDecodeError:
                     # Non-JSON output (e.g. system warnings or info)
                     yield line
             await proc.wait()
+            if not turn_saved and accumulated_response:
+                full_response = "".join(accumulated_response).strip()
+                turn_record = {
+                    "conversation_id": self.active_conversation_id,
+                    "prompt": prompt,
+                    "response": full_response,
+                    "model": model,
+                    "timestamp": time.time(),
+                    "duration_seconds": 0.0,
+                }
+                self.session_history.append(turn_record)
+                self._save_agent_session()
         finally:
             try:
                 proc.kill()

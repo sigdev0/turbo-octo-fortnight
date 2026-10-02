@@ -86,6 +86,47 @@ class TestMissionControlPortal(unittest.TestCase):
         self.assertIsInstance(metrics["disk"]["percent"], (int, float))
         self.assertIsInstance(metrics["uptime_seconds"], int)
 
+    def test_agent_session_endpoints(self):
+        """Verify /api/agent/session and /api/agent/session/new work properly."""
+        # Check current session
+        res = self.client.get("/api/agent/session")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("conversation_id", data)
+        self.assertIn("history", data)
+        self.assertIn("turns_count", data)
+
+        # Reset session
+        res_new = self.client.post("/api/agent/session/new")
+        self.assertEqual(res_new.status_code, 200)
+        new_data = res_new.json()
+        self.assertEqual(new_data.get("status"), "success")
+
+        # Verify session is reset
+        res_after = self.client.get("/api/agent/session")
+        after_data = res_after.json()
+        self.assertIsNone(after_data["conversation_id"])
+        self.assertEqual(after_data["turns_count"], 0)
+        self.assertEqual(len(after_data["history"]), 0)
+
+    def test_supervisor_session_persistence(self):
+        """Verify supervisor saves and reloads session state to disk."""
+        test_id = "test-conv-1234-uuid"
+        self.supervisor.active_conversation_id = test_id
+        self.supervisor.session_history = [{"prompt": "hi", "response": "hello", "model": "gemini"}]
+        self.supervisor._save_agent_session()
+
+        # Create a fresh supervisor instance to verify disk loading
+        new_sup = HomelabSupervisor()
+        self.assertEqual(new_sup.active_conversation_id, test_id)
+        self.assertEqual(len(new_sup.session_history), 1)
+        self.assertEqual(new_sup.session_history[0]["prompt"], "hi")
+
+        # Clean up
+        new_sup.clear_agent_session()
+        self.assertIsNone(new_sup.active_conversation_id)
+        self.assertEqual(len(new_sup.session_history), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

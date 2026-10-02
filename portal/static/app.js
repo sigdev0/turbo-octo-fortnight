@@ -183,6 +183,123 @@ function initLogWebSocket() {
 }
 
 // -------------------------------------------------------------
+// Cross-Device Agent Session Management
+// -------------------------------------------------------------
+async function fetchAgentSession() {
+  try {
+    const res = await fetch("/api/agent/session");
+    if (!res.ok) return;
+    const data = await res.json();
+    state.conversationId = data.conversation_id;
+    state.history = data.history || [];
+
+    updateSessionUI();
+    renderChatThread();
+  } catch (e) {
+    console.error("Failed to fetch agent session:", e);
+  }
+}
+
+function updateSessionUI() {
+  const statusElem = document.getElementById("sessionStatus");
+  const turnsElem = document.getElementById("turnsBadge");
+  const dotElem = document.getElementById("sessionDot");
+
+  const turnCount = state.history.length;
+  if (turnsElem) {
+    turnsElem.textContent = `${turnCount} turn${turnCount === 1 ? "" : "s"}`;
+  }
+
+  if (state.conversationId) {
+    const shortId = state.conversationId.substring(0, 8);
+    if (statusElem) statusElem.textContent = `Session: ${shortId}...`;
+    if (dotElem) {
+      dotElem.style.background = "var(--accent-emerald)";
+      dotElem.style.boxShadow = "0 0 6px var(--accent-emerald)";
+    }
+  } else {
+    if (statusElem) statusElem.textContent = "Fresh Session";
+    if (dotElem) {
+      dotElem.style.background = "var(--accent-cyan)";
+      dotElem.style.boxShadow = "0 0 6px var(--accent-cyan)";
+    }
+  }
+}
+
+function renderChatThread() {
+  const container = document.getElementById("chatMessages");
+  const emptyHint = document.getElementById("chatEmptyHint");
+  if (!container) return;
+
+  if (!state.history || state.history.length === 0) {
+    if (emptyHint) emptyHint.style.display = "block";
+    container.innerHTML = "";
+    return;
+  }
+
+  if (emptyHint) emptyHint.style.display = "none";
+  container.innerHTML = state.history.map(turn => {
+    const timeStr = turn.timestamp ? new Date(turn.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+    const modelTag = turn.model ? turn.model.replace("gemini-", "").replace("claude-", "") : "agent";
+    const durTag = turn.duration_seconds ? ` • ${turn.duration_seconds}s` : "";
+
+    return `
+      <div class="chat-turn">
+        <div class="chat-bubble-user">
+          <div class="chat-meta">
+            <span class="chat-meta-left">👤 You</span>
+            <span>${timeStr}</span>
+          </div>
+          <div>${escapeHtml(turn.prompt)}</div>
+        </div>
+        <div class="chat-bubble-agent">
+          <div class="chat-meta">
+            <span class="chat-meta-left">🤖 Antigravity (${modelTag}${durTag})</span>
+            <span>${timeStr}</span>
+          </div>
+          <div>${escapeHtml(turn.response || "(No text response recorded)")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const threadWrapper = document.getElementById("chatThreadContainer");
+  if (threadWrapper) {
+    threadWrapper.scrollTop = threadWrapper.scrollHeight;
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function handleNewSession() {
+  showToast("Clearing agent session... ⏳");
+  try {
+    const res = await fetch("/api/agent/session/new", { method: "POST" });
+    if (res.ok) {
+      state.conversationId = null;
+      state.history = [];
+      updateSessionUI();
+      renderChatThread();
+      const output = document.getElementById("agentStreamOutput");
+      if (output) output.textContent = "";
+      const streamPanel = document.getElementById("agentStreamPanel");
+      if (streamPanel) streamPanel.style.display = "none";
+      showToast("Started fresh agent session ✨");
+    }
+  } catch (e) {
+    showToast("Failed to reset session", true);
+  }
+}
+
+// -------------------------------------------------------------
 // Antigravity CLI Agent Dispatcher
 // -------------------------------------------------------------
 function initAgentDispatcher() {
@@ -192,6 +309,30 @@ function initAgentDispatcher() {
   const input = document.getElementById("agentPromptInput");
   const btn = document.getElementById("btnDispatchAgent");
   const output = document.getElementById("agentStreamOutput");
+  const streamPanel = document.getElementById("agentStreamPanel");
+  const btnHideStream = document.getElementById("btnHideStream");
+
+  if (btnHideStream && streamPanel) {
+    btnHideStream.addEventListener("click", () => {
+      const isHidden = streamPanel.style.display === "none";
+      streamPanel.style.display = isHidden ? "block" : "none";
+      btnHideStream.textContent = isHidden ? "Minimize" : "Show Stream";
+    });
+  }
+
+  const btnNew = document.getElementById("btnNewSession");
+  if (btnNew) btnNew.addEventListener("click", handleNewSession);
+
+  const btnSync = document.getElementById("btnSyncSession");
+  if (btnSync) {
+    btnSync.addEventListener("click", () => {
+      fetchAgentSession();
+      showToast("Session synced across devices 🔄");
+    });
+  }
+
+  // Load initial session on load
+  fetchAgentSession();
 
   function connectAgentWs() {
     state.agentWs = new WebSocket(wsUrl);
@@ -200,6 +341,7 @@ function initAgentDispatcher() {
       if (data === "[[AGENT_RUN_COMPLETE]]") {
         btn.disabled = false;
         btn.textContent = "🚀 Dispatch";
+        fetchAgentSession();
         return;
       }
       if (
@@ -233,12 +375,21 @@ function initAgentDispatcher() {
     const selectedModel = modelSelect ? modelSelect.value : "gemini-3.8-flash-medium";
     const effort = selectedModel.includes("flash") ? "low" : "high";
 
-    output.style.display = "block";
+    if (streamPanel) streamPanel.style.display = "block";
+    if (btnHideStream) btnHideStream.textContent = "Minimize";
     output.textContent = "";
     btn.disabled = true;
     btn.textContent = "⏳ Executing...";
+    input.value = "";
     showToast(`Dispatched to Antigravity (${selectedModel.split("-")[2] || "fast"}) 🧠`);
-    state.agentWs.send(JSON.stringify({ prompt: promptText, model: selectedModel, effort: effort }));
+
+    state.agentWs.send(JSON.stringify({
+      prompt: promptText,
+      model: selectedModel,
+      effort: effort,
+      continue_session: true,
+      conversation_id: state.conversationId
+    }));
   }
 
   btn.addEventListener("click", () => {
@@ -253,7 +404,6 @@ function initAgentDispatcher() {
 
   document.querySelectorAll(".chip").forEach(chip => {
     chip.addEventListener("click", () => {
-      input.value = chip.dataset.prompt;
       sendPrompt(chip.dataset.prompt);
     });
   });

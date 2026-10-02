@@ -137,16 +137,35 @@
 
       <!-- Section 4: Antigravity Agent Command Dispatcher -->
       <section class="section-card agent-card">
-        <div class="section-header">
-          <h2>🧠 Antigravity CLI Agent Dispatcher</h2>
-          <span class="section-subtitle">Execute prompts on your homelab agent and stream live responses</span>
+        <div class="section-header agent-section-header">
+          <div>
+            <h2>🧠 Antigravity CLI Agent Dispatcher</h2>
+            <span class="section-subtitle">Multi-turn session continuation across phone, desktop, and Telegram</span>
+          </div>
+          <div class="agent-session-bar">
+            <div class="session-badge" id="sessionBadge">
+              <span class="session-indicator-dot" id="sessionDot"></span>
+              <span id="sessionStatus">Fresh Session</span>
+              <span class="turns-badge" id="turnsBadge">0 turns</span>
+            </div>
+            <button class="btn btn-sm btn-secondary" id="btnNewSession" title="Clear conversation memory & start fresh chat">➕ New Chat</button>
+            <button class="btn btn-sm btn-secondary" id="btnSyncSession" title="Refresh session state from homelab">🔄 Sync</button>
+          </div>
         </div>
+
+        <!-- Chat Conversation Thread History (persists across devices) -->
+        <div class="chat-thread-container" id="chatThreadContainer">
+          <div class="chat-empty-hint" id="chatEmptyHint">💬 No messages in this session yet. Type a prompt below to begin your homelab agent session.</div>
+          <div class="chat-messages" id="chatMessages"></div>
+        </div>
+
         <div class="agent-quick-prompts">
           <button class="chip" data-prompt="Run python test suite and summarize results">🧪 Run Unit Tests</button>
           <button class="chip" data-prompt="Check git status and active branch in dev/omni-forge">🌿 Git Status</button>
           <button class="chip" data-prompt="List all files in output/ with their size and duration">📁 Check Output Files</button>
           <button class="chip" data-prompt="Verify system storage and memory health">📊 Health Audit</button>
         </div>
+
         <div class="agent-input-row">
           <select id="agentModelSelect" class="agent-select">
             <option value="gemini-3.8-flash-low">⚡ Flash (Fastest)</option>
@@ -157,7 +176,15 @@
           <input type="text" id="agentPromptInput" class="agent-input" placeholder="Type prompt for homelab agent (e.g. 'Pull latest changes and run tests')...">
           <button class="btn btn-primary" id="btnDispatchAgent">🚀 Dispatch</button>
         </div>
-        <pre class="agent-stream-output" id="agentStreamOutput" style="display: none;"></pre>
+
+        <!-- Real-time Agent Streaming Console -->
+        <div class="agent-stream-panel" id="agentStreamPanel" style="display: none;">
+          <div class="agent-stream-panel-header">
+            <span>⚡ Live Agent Stream</span>
+            <button class="btn-sm" id="btnHideStream">Minimize</button>
+          </div>
+          <pre class="agent-stream-output" id="agentStreamOutput"></pre>
+        </div>
       </section>
 
       <!-- Section 5: Audio & Media Asset Gallery -->
