@@ -267,6 +267,9 @@ class OmniForgeBot:
             [
                 InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
                 InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")
+            ],
+            [
+                InlineKeyboardButton("🌐 Mission Control Portal", callback_data="wiz_menu_portal")
             ]
         ])
         await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
@@ -324,6 +327,31 @@ class OmniForgeBot:
             "⚡ *Status:* All systems operational."
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
+
+    async def portal_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._is_user_authorized(update):
+            return
+        user_lang = self.resolve_user_language(update)
+        portal_url = os.getenv("PORTAL_URL", "http://100.68.13.81:8080")
+
+        buttons = []
+        if portal_url.startswith("https://"):
+            from telegram import WebAppInfo
+            buttons.append([InlineKeyboardButton("🌐 Buka Mission Control (Mini App)" if user_lang == "id" else "🌐 Open Mission Control (Mini App)", web_app=WebAppInfo(url=portal_url))])
+
+        buttons.append([InlineKeyboardButton("🖥️ Buka Portal Web (Tailscale)" if user_lang == "id" else "🖥️ Open Web Portal (Tailscale)", url=portal_url)])
+        kb = InlineKeyboardMarkup(buttons)
+
+        msg = (
+            "⚡ *Homelab Mission Control Portal*\n\n"
+            "Pantau metrik server homelab, streaming log terminal secara langsung, dan kelola service 24/7:\n"
+            f"🔗 `{portal_url}`"
+            if user_lang == "id" else
+            "⚡ *Homelab Mission Control Portal*\n\n"
+            "Monitor homelab system metrics, stream live terminal logs, and manage 24/7 services:\n"
+            f"🔗 `{portal_url}`"
+        )
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
 
     async def reload_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         self.load_cartridges()
@@ -1002,7 +1030,40 @@ class OmniForgeBot:
         prefix = parts[0]
 
         try:
-            if prefix == "wiz_menu_story":
+            if prefix == "wiz_menu_main":
+                lang = self.resolve_user_language(update)
+                msg = (
+                    f"{t('start_title', lang)}\n\n"
+                    f"{t('start_subtitle', lang)}\n\n"
+                    f"{t('start_commands_header', lang)}\n"
+                    f"{t('start_cmd_story', lang)}\n"
+                    f"{t('start_cmd_morning', lang)}\n"
+                    f"{t('start_cmd_clip', lang)}\n"
+                    f"{t('start_cmd_idea', lang)}\n\n"
+                    f"{t('start_cmd_system', lang)}"
+                )
+                toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
+                target_lang = "en" if lang == "id" else "id"
+                story_label = "🌙 Cerita Tidur Anak" if lang == "id" else "🌙 Bedtime Story"
+                morning_label = "☀️ Afirmasi Pagi" if lang == "id" else "☀️ Morning Boost"
+                prof_label = "👤 Profil Anak" if lang == "id" else "👤 Child Profile"
+
+                kb = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton(story_label, callback_data="wiz_menu_story"),
+                        InlineKeyboardButton(morning_label, callback_data="wiz_menu_morning")
+                    ],
+                    [
+                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                        InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")
+                    ],
+                    [
+                        InlineKeyboardButton("🌐 Mission Control Portal", callback_data="wiz_menu_portal")
+                    ]
+                ])
+                await query.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "wiz_menu_story":
                 await self.start_story_wizard(update, context)
 
             elif prefix == "wiz_menu_morning":
@@ -1012,6 +1073,27 @@ class OmniForgeBot:
                     reply_markup=self._get_morning_keyboard(),
                     parse_mode="Markdown"
                 )
+
+            elif prefix == "wiz_menu_portal":
+                user_lang = self.resolve_user_language(update)
+                portal_url = os.getenv("PORTAL_URL", "http://100.68.13.81:8080")
+                buttons = []
+                if portal_url.startswith("https://"):
+                    from telegram import WebAppInfo
+                    buttons.append([InlineKeyboardButton("🌐 Buka Mini App" if user_lang == "id" else "🌐 Open Mini App", web_app=WebAppInfo(url=portal_url))])
+                buttons.append([InlineKeyboardButton("🖥️ Buka Portal Web" if user_lang == "id" else "🖥️ Open Web Portal", url=portal_url)])
+                buttons.append([InlineKeyboardButton("🔙 Menu Utama" if user_lang == "id" else "🔙 Main Menu", callback_data="wiz_menu_main")])
+                kb = InlineKeyboardMarkup(buttons)
+                msg = (
+                    "⚡ *Homelab Mission Control Portal*\n\n"
+                    "Pantau metrik server homelab, streaming log terminal secara langsung, dan kelola service 24/7:\n"
+                    f"🔗 `{portal_url}`"
+                    if user_lang == "id" else
+                    "⚡ *Homelab Mission Control Portal*\n\n"
+                    "Monitor homelab system metrics, stream live terminal logs, and manage 24/7 services:\n"
+                    f"🔗 `{portal_url}`"
+                )
+                await query.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
 
             elif prefix == "wiz_menu_profile":
                 user = update.effective_user
@@ -1244,6 +1326,8 @@ class OmniForgeBot:
         self.app.add_handler(CommandHandler("start", self.start_command))
         self.app.add_handler(CommandHandler("help", self.help_command))
         self.app.add_handler(CommandHandler("status", self.status_command))
+        self.app.add_handler(CommandHandler("portal", self.portal_command))
+        self.app.add_handler(CommandHandler("control", self.portal_command))
         self.app.add_handler(CommandHandler("lang", self.lang_command))
         self.app.add_handler(CommandHandler("reload", self.reload_command))
         self.app.add_handler(CommandHandler("idea", self.idea_command))

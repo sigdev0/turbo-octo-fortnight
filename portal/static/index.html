@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OmniForge Homelab Mission Control</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-dark">
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand-badge">
+          <span class="brand-logo">⚡</span>
+          <span class="brand-title">OMNIFORGE</span>
+          <span class="brand-sub">MISSION CONTROL</span>
+        </div>
+        <div class="host-pill" id="hostPill">
+          <span class="host-dot"></span>
+          <span id="hostname">Homelab WSL2</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="connection-status" id="connStatus">
+          <span class="pulse-indicator"></span>
+          <span id="connLabel">Connected</span>
+        </div>
+        <button class="btn-icon" id="btnRefresh" title="Refresh Telemetry">🔄</button>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-content">
+
+      <!-- Section 1: System Telemetry Gauges -->
+      <section class="section-card telemetry-grid">
+        <div class="metric-card" id="cardCpu">
+          <div class="metric-header">
+            <span class="metric-label">CPU USAGE</span>
+            <span class="metric-icon">⚙️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="cpuValue">0%</span>
+            <span class="metric-sub" id="cpuSub">-- cores</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-cyan" id="cpuBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardRam">
+          <div class="metric-header">
+            <span class="metric-label">MEMORY (RAM)</span>
+            <span class="metric-icon">💾</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="ramValue">0%</span>
+            <span class="metric-sub" id="ramSub">0 / 0 MB</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-purple" id="ramBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardDisk">
+          <div class="metric-header">
+            <span class="metric-label">STORAGE (DISK)</span>
+            <span class="metric-icon">🗄️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="diskValue">0%</span>
+            <span class="metric-sub" id="diskSub">0 GB free</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-emerald" id="diskBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardUptime">
+          <div class="metric-header">
+            <span class="metric-label">HOST UPTIME</span>
+            <span class="metric-icon">⏱️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="uptimeValue">0h 0m</span>
+            <span class="metric-sub" id="osSub">Linux WSL2</span>
+          </div>
+          <div class="uptime-badge">🟢 24/7 ONLINE</div>
+        </div>
+      </section>
+
+      <!-- Section 2: Services & Daemon Controls -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>🛡️ Managed Background Services</h2>
+          <span class="section-subtitle">Live systemd daemons and background runners</span>
+        </div>
+        <div class="services-list" id="servicesList">
+          <!-- Dynamically populated service cards -->
+          <div class="service-item">
+            <div class="service-left">
+              <span class="status-indicator active" id="svcDot"></span>
+              <div>
+                <div class="service-name">omniforge.service</div>
+                <div class="service-meta" id="svcMeta">Telegram Bot Daemon • PID: -- • RAM: --</div>
+              </div>
+            </div>
+            <div class="service-actions">
+              <button class="btn btn-secondary" id="btnRestartSvc">🔄 Restart</button>
+              <button class="btn btn-danger" id="btnStopSvc">⏹️ Stop</button>
+              <button class="btn btn-primary" id="btnStartSvc">▶️ Start</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Live Terminal & Realtime Logs -->
+      <section class="section-card terminal-card">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span class="term-dot dot-red"></span>
+            <span class="term-dot dot-yellow"></span>
+            <span class="term-dot dot-green"></span>
+            <span class="term-name">journalctl -u omniforge.service -f</span>
+          </div>
+          <div class="terminal-controls">
+            <button class="btn-sm" id="btnToggleScroll">Auto-scroll: ON</button>
+            <button class="btn-sm" id="btnClearLogs">Clear</button>
+          </div>
+        </div>
+        <pre class="terminal-body" id="logOutput"><span class="log-info">Connecting to homelab WebSocket log stream...</span></pre>
+      </section>
+
+      <!-- Section 4: Antigravity Agent Command Dispatcher -->
+      <section class="section-card agent-card">
+        <div class="section-header">
+          <h2>🧠 Antigravity CLI Agent Dispatcher</h2>
+          <span class="section-subtitle">Execute prompts on your homelab agent and stream live responses</span>
+        </div>
+        <div class="agent-quick-prompts">
+          <button class="chip" data-prompt="Run python test suite and summarize results">🧪 Run Unit Tests</button>
+          <button class="chip" data-prompt="Check git status and active branch in dev/omni-forge">🌿 Git Status</button>
+          <button class="chip" data-prompt="List all files in output/ with their size and duration">📁 Check Output Files</button>
+          <button class="chip" data-prompt="Verify system storage and memory health">📊 Health Audit</button>
+        </div>
+        <div class="agent-input-row">
+          <input type="text" id="agentPromptInput" class="agent-input" placeholder="Type prompt for homelab agent (e.g. 'Pull latest changes and run tests')...">
+          <button class="btn btn-primary" id="btnDispatchAgent">🚀 Dispatch</button>
+        </div>
+        <pre class="agent-stream-output" id="agentStreamOutput" style="display: none;"></pre>
+      </section>
+
+      <!-- Section 5: Audio & Media Asset Gallery -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>🎧 Generated Bedtime Stories & Audio Gallery</h2>
+          <span class="section-subtitle">Play and review recent personalized sleep journeys</span>
+        </div>
+        <div class="audio-gallery" id="audioGallery">
+          <div class="gallery-empty">Scanning for generated audio files...</div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>OmniForge Engine • Antigravity 2.0 • Homelab Mission Control</span>
+      <span class="footer-version">v2.0.0-prod</span>
+    </footer>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
