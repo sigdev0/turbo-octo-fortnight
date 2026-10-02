@@ -242,18 +242,24 @@ class HomelabSupervisor:
         return files
 
     async def run_agent_prompt(
-        self, prompt: str, cwd: Optional[str] = None
+        self, prompt: str, cwd: Optional[str] = None, model: str = "gemini-3.8-flash-medium", effort: str = "low"
     ) -> AsyncGenerator[str, None]:
         """Dispatches a prompt task to Antigravity CLI and streams the stdout."""
         target_dir = cwd or str(BASE_DIR)
-        cmd = [self.agy_bin, "--dangerously-skip-permissions", "-p", prompt]
+        cmd = [
+            self.agy_bin,
+            "--dangerously-skip-permissions",
+            "--model", model,
+            "--effort", effort,
+            "--output-format", "stream-json",
+            "-p", prompt
+        ]
 
         if not Path(self.agy_bin).exists() and not shutil.which(self.agy_bin):
             yield f"❌ Antigravity CLI binary not found at '{self.agy_bin}'."
             return
 
-        yield f"🚀 Launching agent task inside {target_dir}..."
-        yield f"💬 Prompt: \"{prompt}\"\n"
+        yield f"🚀 Launching agent task ({model})...\n💬 Prompt: \"{prompt}\"\n"
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -264,12 +270,53 @@ class HomelabSupervisor:
 
         try:
             while True:
-                line = await proc.stdout.readline()
-                if not line:
+                line_bytes = await proc.stdout.readline()
+                if not line_bytes:
                     break
-                yield line.decode(errors="replace").rstrip()
+                line = line_bytes.decode(errors="replace").strip()
+                if not line:
+                    continue
+
+                # Parse stream-json event
+                try:
+                    event_data = json.loads(line)
+                    event_type = event_data.get("event")
+
+                    if event_type == "init":
+                        yield f"⚡ Agent initialized in {target_dir}."
+                    elif event_type == "step_update":
+                        step = event_data.get("step_update", {})
+                        stype = step.get("step_type")
+                        state = step.get("state")
+
+                        if stype == "tool":
+                            tool_name = step.get("tool_name", "tool")
+                            tool_info = step.get("tool_info", {})
+                            if state == "ACTIVE":
+                                params = tool_info.get("parameters", {})
+                                cmd_str = params.get("CommandLine", str(params))
+                                yield f"⚙️ [Tool: {tool_name}] {cmd_str}"
+                            elif state == "DONE":
+                                out = tool_info.get("output", "").strip()
+                                if out:
+                                    snippet = out[:160] + ("..." if len(out) > 160 else "")
+                                    yield f"📄 {snippet}"
+                        elif stype == "agent_response":
+                            delta = step.get("text_delta")
+                            if delta:
+                                yield delta
+                        elif stype == "thought":
+                            tdelta = step.get("thought_delta")
+                            if tdelta:
+                                yield f"💭 {tdelta}"
+                    elif event_type == "result":
+                        res = event_data.get("result", {})
+                        dur = res.get("duration_seconds", 0)
+                        yield f"\n🏁 Task completed successfully ({dur:.1f}s)."
+                except json.JSONDecodeError:
+                    # Non-JSON output (e.g. system warnings or info)
+                    yield line
             await proc.wait()
-            yield f"\n🏁 Task completed with exit code {proc.returncode}."
         finally:
             try:
                 proc.kill()

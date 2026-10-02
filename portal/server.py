@@ -153,21 +153,23 @@ async def websocket_agent_dispatch(websocket: WebSocket):
     logger.info("WebSocket client connected to Agent Dispatcher")
     try:
         while True:
-            data_str = await websocket.receive_text()
             try:
                 data = json.loads(data_str)
                 prompt = data.get("prompt", "").strip()
+                model = data.get("model", "gemini-3.8-flash-medium")
+                effort = data.get("effort", "low")
             except Exception:
                 prompt = data_str.strip()
+                model = "gemini-3.8-flash-medium"
+                effort = "low"
 
             if not prompt:
                 await websocket.send_text("⚠️ Empty prompt received.")
                 continue
 
-            async for chunk in supervisor.run_agent_prompt(prompt):
+            async for chunk in supervisor.run_agent_prompt(prompt, model=model, effort=effort):
                 await websocket.send_text(chunk)
-                # Yield control to event loop
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.005)
 
             await websocket.send_text("[[AGENT_RUN_COMPLETE]]")
     except WebSocketDisconnect:

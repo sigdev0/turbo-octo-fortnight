@@ -202,7 +202,20 @@ function initAgentDispatcher() {
         btn.textContent = "🚀 Dispatch";
         return;
       }
-      output.appendChild(document.createTextNode(data + "\n"));
+      if (
+        data.startsWith("🚀") ||
+        data.startsWith("⚙️") ||
+        data.startsWith("📄") ||
+        data.startsWith("⚡") ||
+        data.startsWith("🏁") ||
+        data.startsWith("💬") ||
+        data.startsWith("❌") ||
+        data.startsWith("💭")
+      ) {
+        output.appendChild(document.createTextNode(data + "\n"));
+      } else {
+        output.appendChild(document.createTextNode(data));
+      }
       output.scrollTop = output.scrollHeight;
     };
     state.agentWs.onclose = () => {
@@ -216,12 +229,16 @@ function initAgentDispatcher() {
       showToast("Agent WebSocket is connecting... please wait", true);
       return;
     }
+    const modelSelect = document.getElementById("agentModelSelect");
+    const selectedModel = modelSelect ? modelSelect.value : "gemini-3.8-flash-medium";
+    const effort = selectedModel.includes("flash") ? "low" : "high";
+
     output.style.display = "block";
     output.textContent = "";
     btn.disabled = true;
     btn.textContent = "⏳ Executing...";
-    showToast(`Dispatched task to Antigravity CLI 🧠`);
-    state.agentWs.send(JSON.stringify({ prompt: promptText }));
+    showToast(`Dispatched to Antigravity (${selectedModel.split("-")[2] || "fast"}) 🧠`);
+    state.agentWs.send(JSON.stringify({ prompt: promptText, model: selectedModel, effort: effort }));
   }
 
   btn.addEventListener("click", () => {
