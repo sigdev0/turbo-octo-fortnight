@@ -153,6 +153,7 @@ async def websocket_agent_dispatch(websocket: WebSocket):
     logger.info("WebSocket client connected to Agent Dispatcher")
     try:
         while True:
+            data_str = await websocket.receive_text()
             try:
                 data = json.loads(data_str)
                 prompt = data.get("prompt", "").strip()
