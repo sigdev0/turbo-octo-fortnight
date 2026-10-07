@@ -36,106 +36,7 @@
     <!-- Main Content Container -->
     <main class="main-content">
 
-      <!-- Section 1: System Telemetry Gauges -->
-      <section class="section-card telemetry-grid">
-        <div class="metric-card" id="cardCpu">
-          <div class="metric-header">
-            <span class="metric-label">CPU USAGE</span>
-            <span class="metric-icon">⚙️</span>
-          </div>
-          <div class="metric-value-row">
-            <span class="metric-value" id="cpuValue">0%</span>
-            <span class="metric-sub" id="cpuSub">-- cores</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill progress-cyan" id="cpuBar" style="width: 0%"></div>
-          </div>
-        </div>
-
-        <div class="metric-card" id="cardRam">
-          <div class="metric-header">
-            <span class="metric-label">MEMORY (RAM)</span>
-            <span class="metric-icon">💾</span>
-          </div>
-          <div class="metric-value-row">
-            <span class="metric-value" id="ramValue">0%</span>
-            <span class="metric-sub" id="ramSub">0 / 0 MB</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill progress-purple" id="ramBar" style="width: 0%"></div>
-          </div>
-        </div>
-
-        <div class="metric-card" id="cardDisk">
-          <div class="metric-header">
-            <span class="metric-label">STORAGE (DISK)</span>
-            <span class="metric-icon">🗄️</span>
-          </div>
-          <div class="metric-value-row">
-            <span class="metric-value" id="diskValue">0%</span>
-            <span class="metric-sub" id="diskSub">0 GB free</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill progress-emerald" id="diskBar" style="width: 0%"></div>
-          </div>
-        </div>
-
-        <div class="metric-card" id="cardUptime">
-          <div class="metric-header">
-            <span class="metric-label">HOST UPTIME</span>
-            <span class="metric-icon">⏱️</span>
-          </div>
-          <div class="metric-value-row">
-            <span class="metric-value" id="uptimeValue">0h 0m</span>
-            <span class="metric-sub" id="osSub">Host OS</span>
-          </div>
-          <div class="uptime-badge">🟢 24/7 ONLINE</div>
-        </div>
-      </section>
-
-      <!-- Section 2: Services & Daemon Controls -->
-      <section class="section-card">
-        <div class="section-header">
-          <h2>🛡️ Managed Background Services</h2>
-          <span class="section-subtitle">Live systemd daemons and background runners</span>
-        </div>
-        <div class="services-list" id="servicesList">
-          <!-- Dynamically populated service cards -->
-          <div class="service-item">
-            <div class="service-left">
-              <span class="status-indicator active" id="svcDot"></span>
-              <div>
-                <div class="service-name">omniforge.service</div>
-                <div class="service-meta" id="svcMeta">Telegram Bot Daemon • PID: -- • RAM: --</div>
-              </div>
-            </div>
-            <div class="service-actions">
-              <button class="btn btn-secondary" id="btnRestartSvc">🔄 Restart</button>
-              <button class="btn btn-danger" id="btnStopSvc">⏹️ Stop</button>
-              <button class="btn btn-primary" id="btnStartSvc">▶️ Start</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Section 3: Live Terminal & Realtime Logs -->
-      <section class="section-card terminal-card">
-        <div class="terminal-header">
-          <div class="terminal-title">
-            <span class="term-dot dot-red"></span>
-            <span class="term-dot dot-yellow"></span>
-            <span class="term-dot dot-green"></span>
-            <span class="term-name" id="termName">Live System & Service Logs</span>
-          </div>
-          <div class="terminal-controls">
-            <button class="btn-sm" id="btnToggleScroll">Auto-scroll: ON</button>
-            <button class="btn-sm" id="btnClearLogs">Clear</button>
-          </div>
-        </div>
-        <pre class="terminal-body" id="logOutput"><span class="log-info">Connecting to homelab WebSocket log stream...</span></pre>
-      </section>
-
-      <!-- Section: Antigravity Rate Limits & Quota -->
+      <!-- Section 1: Antigravity Rate Limits & Quota -->
       <section class="section-card limits-card" id="limitsCard">
         <div class="section-header limits-header">
           <div>
@@ -211,7 +112,7 @@
         </div>
       </section>
 
-      <!-- Section 4: Antigravity Agent Command Dispatcher -->
+      <!-- Section 2: Antigravity Agent Command Dispatcher -->
       <section class="section-card agent-card">
         <div class="section-header agent-section-header">
           <div>
@@ -224,7 +125,7 @@
               <span id="sessionStatus">Fresh Session</span>
               <span class="turns-badge" id="turnsBadge">0 turns</span>
             </div>
-            <button class="btn btn-sm btn-secondary" id="btnNewSession" title="Clear conversation memory & start fresh chat">➕ New Chat</button>
+            <button class="btn btn-sm btn-secondary" id="btnNewSession" title="Clear conversation memory &amp; start fresh chat">➕ New Chat</button>
             <button class="btn btn-sm btn-secondary" id="btnSyncSession" title="Refresh session state from homelab">🔄 Sync</button>
           </div>
         </div>
@@ -263,10 +164,109 @@
         </div>
       </section>
 
-      <!-- Section 5: Audio & Media Asset Gallery -->
+      <!-- Section 3: Live Terminal & Realtime Logs -->
+      <section class="section-card terminal-card">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span class="term-dot dot-red"></span>
+            <span class="term-dot dot-yellow"></span>
+            <span class="term-dot dot-green"></span>
+            <span class="term-name" id="termName">Live System &amp; Service Logs</span>
+          </div>
+          <div class="terminal-controls">
+            <button class="btn-sm" id="btnToggleScroll">Auto-scroll: ON</button>
+            <button class="btn-sm" id="btnClearLogs">Clear</button>
+          </div>
+        </div>
+        <pre class="terminal-body" id="logOutput"><span class="log-info">Connecting to homelab WebSocket log stream...</span></pre>
+      </section>
+
+      <!-- Section 4: System Telemetry Gauges -->
+      <section class="section-card telemetry-grid">
+        <div class="metric-card" id="cardCpu">
+          <div class="metric-header">
+            <span class="metric-label">CPU USAGE</span>
+            <span class="metric-icon">⚙️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="cpuValue">0%</span>
+            <span class="metric-sub" id="cpuSub">-- cores</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-cyan" id="cpuBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardRam">
+          <div class="metric-header">
+            <span class="metric-label">MEMORY (RAM)</span>
+            <span class="metric-icon">💾</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="ramValue">0%</span>
+            <span class="metric-sub" id="ramSub">0 / 0 MB</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-purple" id="ramBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardDisk">
+          <div class="metric-header">
+            <span class="metric-label">STORAGE (DISK)</span>
+            <span class="metric-icon">🗄️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="diskValue">0%</span>
+            <span class="metric-sub" id="diskSub">0 GB free</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill progress-emerald" id="diskBar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="metric-card" id="cardUptime">
+          <div class="metric-header">
+            <span class="metric-label">HOST UPTIME</span>
+            <span class="metric-icon">⏱️</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="uptimeValue">0h 0m</span>
+            <span class="metric-sub" id="osSub">Host OS</span>
+          </div>
+          <div class="uptime-badge">🟢 24/7 ONLINE</div>
+        </div>
+      </section>
+
+      <!-- Section 5: Managed Background Services -->
       <section class="section-card">
         <div class="section-header">
-          <h2>🎧 Generated Bedtime Stories & Audio Gallery</h2>
+          <h2>🛡️ Managed Background Services</h2>
+          <span class="section-subtitle">Live systemd daemons and background runners</span>
+        </div>
+        <div class="services-list" id="servicesList">
+          <!-- Dynamically populated service cards -->
+          <div class="service-item">
+            <div class="service-left">
+              <span class="status-indicator active" id="svcDot"></span>
+              <div>
+                <div class="service-name">omniforge.service</div>
+                <div class="service-meta" id="svcMeta">Telegram Bot Daemon • PID: -- • RAM: --</div>
+              </div>
+            </div>
+            <div class="service-actions">
+              <button class="btn btn-secondary" id="btnRestartSvc">🔄 Restart</button>
+              <button class="btn btn-danger" id="btnStopSvc">⏹️ Stop</button>
+              <button class="btn btn-primary" id="btnStartSvc">▶️ Start</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 6: Audio & Media Asset Gallery -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>🎧 Generated Bedtime Stories &amp; Audio Gallery</h2>
           <span class="section-subtitle">Play and review recent personalized sleep journeys</span>
         </div>
         <div class="audio-gallery" id="audioGallery">
