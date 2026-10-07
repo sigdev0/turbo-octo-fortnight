@@ -13,6 +13,7 @@ const state = {
 // Initialization
 // -------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
+  initTabNavigation();
   initTelemetryPolling();
   initLogWebSocket();
   initAgentDispatcher();
@@ -47,6 +48,50 @@ document.addEventListener("DOMContentLoaded", () => {
     state.logLines = 0;
   });
 });
+
+// -------------------------------------------------------------
+// Tab Navigation
+// -------------------------------------------------------------
+function switchTab(tabId) {
+  const navTabs = document.querySelectorAll(".nav-tab");
+  const tabPanes = document.querySelectorAll(".tab-pane");
+
+  navTabs.forEach(tab => {
+    if (tab.dataset.tab === tabId) {
+      tab.classList.add("active");
+    } else {
+      tab.classList.remove("active");
+    }
+  });
+
+  tabPanes.forEach(pane => {
+    if (pane.id === tabId) {
+      pane.classList.add("active");
+    } else {
+      pane.classList.remove("active");
+    }
+  });
+
+  // Re-scroll to top smoothly on tab switch
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function initTabNavigation() {
+  const navTabs = document.querySelectorAll(".nav-tab");
+  navTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const targetId = tab.dataset.tab;
+      if (targetId) switchTab(targetId);
+    });
+  });
+
+  const miniQuotaPill = document.getElementById("miniQuotaPill");
+  if (miniQuotaPill) {
+    miniQuotaPill.addEventListener("click", () => {
+      switchTab("tab-quotas");
+    });
+  }
+}
 
 // -------------------------------------------------------------
 // System Telemetry & Metrics
@@ -271,6 +316,44 @@ async function fetchAgentLimits() {
           data.claude_gpt.five_hour.percent_remaining,
           data.claude_gpt.five_hour.description
         );
+      }
+    }
+
+    // Update Nav Tab Badge & Mini Quota Pill
+    const primaryPct = (data.gemini && data.gemini.five_hour)
+      ? Math.round(data.gemini.five_hour.percent_remaining)
+      : 63;
+
+    const navBadge = document.getElementById("navTabQuotaBadge");
+    if (navBadge) {
+      navBadge.textContent = `${primaryPct}%`;
+      if (primaryPct < 15) {
+        navBadge.style.color = "#ef4444";
+        navBadge.style.borderColor = "rgba(239, 68, 68, 0.4)";
+        navBadge.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+      } else if (primaryPct < 30) {
+        navBadge.style.color = "#f59e0b";
+        navBadge.style.borderColor = "rgba(245, 158, 11, 0.4)";
+        navBadge.style.backgroundColor = "rgba(245, 158, 11, 0.15)";
+      } else {
+        navBadge.style.color = "#22c55e";
+        navBadge.style.borderColor = "rgba(34, 197, 94, 0.35)";
+        navBadge.style.backgroundColor = "rgba(34, 197, 94, 0.15)";
+      }
+    }
+
+    const miniPill = document.getElementById("miniQuotaPill");
+    if (miniPill) {
+      miniPill.textContent = `⚡ Quotas (${primaryPct}%)`;
+      if (primaryPct < 15) {
+        miniPill.style.color = "#ef4444";
+        miniPill.style.borderColor = "rgba(239, 68, 68, 0.4)";
+      } else if (primaryPct < 30) {
+        miniPill.style.color = "#f59e0b";
+        miniPill.style.borderColor = "rgba(245, 158, 11, 0.4)";
+      } else {
+        miniPill.style.color = "#22c55e";
+        miniPill.style.borderColor = "rgba(34, 197, 94, 0.3)";
       }
     }
   } catch (err) {
