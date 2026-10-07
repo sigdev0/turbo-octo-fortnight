@@ -60,7 +60,10 @@ async function fetchTelemetry() {
     // CPU
     const cpuPct = data.cpu.percent || 0;
     document.getElementById("cpuValue").textContent = `${cpuPct}%`;
-    document.getElementById("cpuSub").textContent = `${data.cpu.cores_logical} cores • load ${data.cpu.load_avg.map(v => v.toFixed(1)).join(", ")}`;
+    const loadStr = (data.cpu.load_avg && data.cpu.load_avg.length > 0)
+      ? ` • load ${data.cpu.load_avg.map(v => v.toFixed(1)).join(", ")}`
+      : "";
+    document.getElementById("cpuSub").textContent = `${data.cpu.cores_logical} cores${loadStr}`;
     document.getElementById("cpuBar").style.width = `${Math.min(100, Math.max(0, cpuPct))}%`;
 
     // RAM
@@ -116,7 +119,7 @@ async function fetchServices() {
 
     if (svc.active) {
       dot.className = "status-indicator active";
-      meta.textContent = `State: ${svc.state.toUpperCase()} • PID: ${svc.pid || "--"} • RAM: ${svc.memory_mb || 0} MB • systemd`;
+      meta.textContent = `State: ${svc.state.toUpperCase()} • PID: ${svc.pid || "--"} • RAM: ${svc.memory_mb || 0} MB • ${svc.backend || "systemd"}`;
       document.getElementById("btnStartSvc").style.display = "none";
       document.getElementById("btnStopSvc").style.display = "inline-flex";
     } else {

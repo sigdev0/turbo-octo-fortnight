@@ -21,7 +21,7 @@
         </div>
         <div class="host-pill" id="hostPill">
           <span class="host-dot"></span>
-          <span id="hostname">Homelab WSL2</span>
+          <span id="hostname">Homelab Host</span>
         </div>
       </div>
       <div class="header-right">
@@ -87,7 +87,7 @@
           </div>
           <div class="metric-value-row">
             <span class="metric-value" id="uptimeValue">0h 0m</span>
-            <span class="metric-sub" id="osSub">Linux WSL2</span>
+            <span class="metric-sub" id="osSub">Host OS</span>
           </div>
           <div class="uptime-badge">🟢 24/7 ONLINE</div>
         </div>
@@ -125,7 +125,7 @@
             <span class="term-dot dot-red"></span>
             <span class="term-dot dot-yellow"></span>
             <span class="term-dot dot-green"></span>
-            <span class="term-name">journalctl -u omniforge.service -f</span>
+            <span class="term-name" id="termName">Live System & Service Logs</span>
           </div>
           <div class="terminal-controls">
             <button class="btn-sm" id="btnToggleScroll">Auto-scroll: ON</button>

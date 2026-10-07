@@ -25,16 +25,26 @@ class HomelabSupervisor:
     def __init__(self, monitored_services: Optional[List[str]] = None):
         self.monitored_services = monitored_services or ["omniforge.service"]
         self.is_linux = platform.system() == "Linux"
+        self.is_windows = platform.system() == "Windows"
         self.systemctl_bin = shutil.which("systemctl")
         self.journalctl_bin = shutil.which("journalctl")
         self.agy_bin = (
-            shutil.which("agy")
+            shutil.which("agy.cmd")
+            or shutil.which("agy.exe")
+            or shutil.which("agy")
+            or str(Path.home() / "AppData" / "Roaming" / "npm" / "agy.cmd")
             or str(Path.home() / ".local" / "bin" / "agy")
+            or str(Path.home() / ".gemini" / "bin" / "agy.cmd")
+            or str(Path.home() / ".gemini" / "bin" / "agy.exe")
             or str(Path.home() / ".gemini" / "bin" / "agy")
         )
         self.data_dir = BASE_DIR / "data"
+        self.logs_dir = BASE_DIR / "logs"
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.session_file = self.data_dir / "portal_agent_session.json"
+        self.pid_file = self.data_dir / "omniforge.pid"
+        self.log_file = self.logs_dir / "omniforge.log"
         self.active_conversation_id: Optional[str] = None
         self.session_history: List[Dict[str, Any]] = []
         self._load_agent_session()
@@ -81,7 +91,8 @@ class HomelabSupervisor:
         """Returns comprehensive host CPU, RAM, disk, and load average telemetry."""
         cpu_pct = psutil.cpu_percent(interval=None)
         vm = psutil.virtual_memory()
-        disk = psutil.disk_usage("/")
+        root_path = BASE_DIR.anchor if self.is_windows else "/"
+        disk = psutil.disk_usage(root_path)
         boot_ts = psutil.boot_time()
         uptime_sec = int(time.time() - boot_ts)
 
@@ -170,11 +181,30 @@ class HomelabSupervisor:
                     "backend": "systemd",
                 }
 
-        # Fallback for macOS / non-systemd environments (detect via process table)
+        # Cross-platform / Windows: check PID file
+        if self.pid_file.exists():
+            try:
+                pid_cand = int(self.pid_file.read_text().strip())
+                if psutil.pid_exists(pid_cand):
+                    p = psutil.Process(pid_cand)
+                    if p.is_running() and p.status() != psutil.STATUS_ZOMBIE:
+                        mem = round(p.memory_info().rss / (1024 * 1024), 1)
+                        return {
+                            "service": service_name,
+                            "state": "active",
+                            "active": True,
+                            "pid": pid_cand,
+                            "memory_mb": mem,
+                            "backend": "pidfile",
+                        }
+            except Exception:
+                pass
+
+        # Fallback: scan process table for active bot runner
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
                 cmdline = " ".join(proc.info.get("cmdline") or [])
-                if "main.py" in cmdline and "--run" in cmdline:
+                if ("core.bot" in cmdline or "main.py" in cmdline) and proc.info["pid"] != os.getpid():
                     mem = round(proc.memory_info().rss / (1024 * 1024), 1)
                     return {
                         "service": service_name,
@@ -193,15 +223,19 @@ class HomelabSupervisor:
             "active": False,
             "pid": None,
             "memory_mb": 0.0,
-            "backend": "process_scan",
+            "backend": "pidfile" if self.is_windows else "process_scan",
         }
 
     async def control_service(self, service_name: str, action: str) -> Dict[str, Any]:
         """Executes start, stop, or restart on a service."""
+        import subprocess
+        import sys
+
         action = action.lower().strip()
         if action not in ("start", "stop", "restart"):
             return {"status": "error", "message": f"Unsupported action: {action}"}
 
+        # Linux systemd environment
         if self.is_linux and self.systemctl_bin:
             try:
                 cmd = ["sudo", self.systemctl_bin, action, service_name]
@@ -218,15 +252,74 @@ class HomelabSupervisor:
             except Exception as e:
                 return {"status": "error", "message": str(e)}
 
-        return {
-            "status": "error",
-            "message": "Direct service lifecycle control is only supported in Linux systemd environments.",
-        }
+        # Windows / Non-systemd background process supervisor
+        if action == "start":
+            current = await self.get_service_status(service_name)
+            if current.get("active"):
+                return {"status": "success", "action": "start", "message": "Service already running.", "service": current}
+
+            with open(self.log_file, "a", encoding="utf-8") as lf:
+                lf.write(f"\n--- [OmniForge Daemon Started at {time.strftime('%Y-%m-%d %H:%M:%S')}] ---\n")
+
+            log_out = open(self.log_file, "a", encoding="utf-8")
+            creationflags = 0
+            if self.is_windows:
+                creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "core.bot", "--run"],
+                cwd=str(BASE_DIR),
+                stdout=log_out,
+                stderr=subprocess.STDOUT,
+                creationflags=creationflags,
+            )
+            self.pid_file.write_text(str(proc.pid))
+            await asyncio.sleep(0.5)
+            status = await self.get_service_status(service_name)
+            return {"status": "success", "action": "start", "service": status}
+
+        elif action == "stop":
+            stopped = False
+            if self.pid_file.exists():
+                try:
+                    pid = int(self.pid_file.read_text().strip())
+                    if psutil.pid_exists(pid):
+                        p = psutil.Process(pid)
+                        p.terminate()
+                        try:
+                            p.wait(timeout=3)
+                        except psutil.TimeoutExpired:
+                            p.kill()
+                        stopped = True
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        self.pid_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+            for proc in psutil.process_iter(["pid", "cmdline"]):
+                try:
+                    cmdline = " ".join(proc.info.get("cmdline") or [])
+                    if ("core.bot" in cmdline or "main.py --run" in cmdline) and proc.info["pid"] != os.getpid():
+                        proc.terminate()
+                        stopped = True
+                except Exception:
+                    pass
+
+            status = await self.get_service_status(service_name)
+            return {"status": "success", "action": "stop", "service": status}
+
+        elif action == "restart":
+            await self.control_service(service_name, "stop")
+            await asyncio.sleep(1.0)
+            return await self.control_service(service_name, "start")
 
     async def stream_service_logs(
         self, service_name: str = "omniforge.service", lines: int = 50
     ) -> AsyncGenerator[str, None]:
-        """Asynchronously streams journalctl logs line-by-line."""
+        """Asynchronously streams logs line-by-line (journalctl on Linux, log tailer on Windows/macOS)."""
         if self.is_linux and self.journalctl_bin:
             proc = await asyncio.create_subprocess_exec(
                 self.journalctl_bin,
@@ -250,14 +343,25 @@ class HomelabSupervisor:
                 except Exception:
                     pass
         else:
-            # Fallback mock/dev log stream for macOS/local testing
-            yield f"[Dev Supervisor] Connected to log stream for {service_name}."
-            yield f"[Dev Supervisor] Host system: {platform.system()} {platform.release()}"
-            counter = 0
-            while True:
-                await asyncio.sleep(2.0)
-                counter += 1
-                yield f"[{time.strftime('%X')}] Heartbeat tick #{counter} - Service {service_name} idle."
+            # Cross-platform log tailer for Windows and non-systemd environments
+            if not self.log_file.exists():
+                self.log_file.write_text(f"[OmniForge Log Stream Initialized at {time.strftime('%Y-%m-%d %H:%M:%S')}]\n")
+
+            try:
+                with open(self.log_file, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.readlines()
+                    for line in content[-lines:]:
+                        yield line.rstrip()
+
+                    f.seek(0, os.SEEK_END)
+                    while True:
+                        line = f.readline()
+                        if line:
+                            yield line.rstrip()
+                        else:
+                            await asyncio.sleep(0.5)
+            except Exception as e:
+                yield f"[Log Tailer Error] {e}"
 
     async def list_recent_assets(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Lists generated audio stories and video clips in output/."""
@@ -314,14 +418,21 @@ class HomelabSupervisor:
             yield f"❌ Antigravity CLI binary not found at '{self.agy_bin}'."
             return
 
-        session_label = f" [Session: {target_conv_id[:8]}...]" if target_conv_id else " [New Session]"
-        yield f"🚀 Launching agent task ({model}){session_label}...\n💬 Prompt: \"{prompt}\"\n"
+        exec_cmd = cmd
+        if self.is_windows:
+            lower_bin = str(self.agy_bin).lower()
+            if lower_bin.endswith((".cmd", ".bat")) or not lower_bin.endswith(".exe"):
+                exec_cmd = ["cmd.exe", "/c"] + cmd
+
+        proc_env = os.environ.copy()
+        proc_env["PYTHONUNBUFFERED"] = "1"
 
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
+            *exec_cmd,
             cwd=target_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            env=proc_env,
         )
 
         accumulated_response: List[str] = []
