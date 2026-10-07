@@ -135,6 +135,38 @@
         <pre class="terminal-body" id="logOutput"><span class="log-info">Connecting to homelab WebSocket log stream...</span></pre>
       </section>
 
+      <!-- Section: Antigravity Rate Limits & Quota -->
+      <section class="section-card limits-card" id="limitsCard">
+        <div class="section-header limits-header">
+          <div>
+            <h2>⚡ Antigravity Rate Limits &amp; Quota</h2>
+            <span class="section-subtitle">Real-time rolling limits matching Antigravity Desktop</span>
+          </div>
+          <div class="limits-header-right">
+            <span class="quota-badge tier-badge" id="quotaTierBadge">🟢 Standard Tier</span>
+            <button class="btn btn-sm btn-secondary" id="btnRefreshLimits" title="Refresh quota usage">🔄 Sync</button>
+          </div>
+        </div>
+        <div class="limits-grid">
+          <div class="limit-gauge-card">
+            <div class="limit-gauge-header">
+              <span>⏱️ 5-Hour Rolling Limit</span>
+              <span class="limit-gauge-value" id="fiveHourPct">100% remaining</span>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill progress-emerald" id="fiveHourBar" style="width: 100%"></div></div>
+            <div class="limit-gauge-footer"><span id="fiveHourUsed">0 prompts used</span><span id="fiveHourReset">Resets in 5h 0m</span></div>
+          </div>
+          <div class="limit-gauge-card">
+            <div class="limit-gauge-header">
+              <span>📅 Weekly Limit</span>
+              <span class="limit-gauge-value" id="weeklyPct">100% remaining</span>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill progress-cyan" id="weeklyBar" style="width: 100%"></div></div>
+            <div class="limit-gauge-footer"><span id="weeklyUsed">0 prompts used</span><span id="weeklyReset">Resets on Sunday</span></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Section 4: Antigravity Agent Command Dispatcher -->
       <section class="section-card agent-card">
         <div class="section-header agent-section-header">

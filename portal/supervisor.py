@@ -87,6 +87,61 @@ class HomelabSupervisor:
         self._save_agent_session()
         return {"status": "success", "message": "Cleared session. Next prompt will start a new conversation."}
 
+    def get_agent_limits(self) -> Dict[str, Any]:
+        """
+        Calculates 5-hour rolling limit and weekly limit quota estimates
+        based on in-memory session telemetry, matching the Antigravity Desktop UX.
+        """
+        now = time.time()
+        five_hours_ago = now - (5 * 3600)
+        seven_days_ago = now - (7 * 86400)
+
+        # Count prompts in 5-hour rolling window
+        recent_5h = [t for t in self.session_history if t.get("timestamp", 0) >= five_hours_ago]
+        used_5h = len(recent_5h)
+        budget_5h = 50  # Standard prompt budget per 5-hour burst window
+        rem_5h_pct = max(0, min(100, int(((budget_5h - used_5h) / budget_5h) * 100)))
+
+        # Calculate time until reset of the oldest prompt in the window
+        if recent_5h:
+            oldest_ts = min(t.get("timestamp", now) for t in recent_5h)
+            diff_sec = max(0, int((oldest_ts + (5 * 3600)) - now))
+            hrs, mins = divmod(diff_sec // 60, 60)
+            resets_5h_str = f"Resets in {hrs}h {mins}m"
+        else:
+            resets_5h_str = "Resets in 5h 0m (Window clear)"
+
+        # Count prompts in 7-day window
+        recent_7d = [t for t in self.session_history if t.get("timestamp", 0) >= seven_days_ago]
+        used_7d = len(recent_7d)
+        budget_7d = 250  # Standard weekly prompt budget
+        rem_7d_pct = max(0, min(100, int(((budget_7d - used_7d) / budget_7d) * 100)))
+
+        # Next weekly reset (Sunday midnight)
+        days_until_sunday = (6 - time.localtime().tm_wday) % 7
+        if days_until_sunday == 0:
+            resets_7d_str = "Resets tonight at 00:00"
+        else:
+            resets_7d_str = f"Resets in {days_until_sunday} day{'s' if days_until_sunday > 1 else ''} (Sunday)"
+
+        return {
+            "status": "healthy",
+            "tier": "Standard Tier",
+            "five_hour": {
+                "percent_remaining": rem_5h_pct,
+                "used": used_5h,
+                "budget": budget_5h,
+                "resets_in": resets_5h_str,
+            },
+            "weekly": {
+                "percent_remaining": rem_7d_pct,
+                "used": used_7d,
+                "budget": budget_7d,
+                "resets_on": resets_7d_str,
+            },
+            "throttling": False,
+        }
+
     def get_system_metrics(self) -> Dict[str, Any]:
         """Returns comprehensive host CPU, RAM, disk, and load average telemetry."""
         cpu_pct = psutil.cpu_percent(interval=None)
@@ -403,13 +458,25 @@ class HomelabSupervisor:
         target_dir = cwd or str(BASE_DIR)
         target_conv_id = conversation_id or (self.active_conversation_id if resume else None)
 
+        # Determine appropriate effort parameter for the selected model
+        effort_arg = effort
+        if "claude" in model.lower():
+            effort_arg = None
+        elif "-low" in model.lower():
+            effort_arg = "low"
+        elif "-medium" in model.lower():
+            effort_arg = "medium"
+        elif "-high" in model.lower():
+            effort_arg = "high"
+
         cmd = [
             self.agy_bin,
             "--dangerously-skip-permissions",
             "--model", model,
-            "--effort", effort,
-            "--output-format", "stream-json",
         ]
+        if effort_arg:
+            cmd.extend(["--effort", effort_arg])
+        cmd.extend(["--output-format", "stream-json"])
         if target_conv_id:
             cmd.extend(["--conversation", target_conv_id])
         cmd.extend(["-p", prompt])
@@ -424,16 +491,23 @@ class HomelabSupervisor:
             if lower_bin.endswith((".cmd", ".bat")) or not lower_bin.endswith(".exe"):
                 exec_cmd = ["cmd.exe", "/c"] + cmd
 
+        session_label = f" [Session: {target_conv_id[:8]}...]" if target_conv_id else " [New Session]"
+        yield f"🚀 Launching agent task ({model}){session_label}...\n💬 Prompt: \"{prompt}\"\n"
+
         proc_env = os.environ.copy()
         proc_env["PYTHONUNBUFFERED"] = "1"
 
-        proc = await asyncio.create_subprocess_exec(
-            *exec_cmd,
-            cwd=target_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            env=proc_env,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *exec_cmd,
+                cwd=target_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                env=proc_env,
+            )
+        except Exception as e:
+            yield f"❌ Failed to launch Antigravity process: {type(e).__name__}: {e or repr(e)}"
+            return
 
         accumulated_response: List[str] = []
         turn_saved = False

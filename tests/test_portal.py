@@ -127,6 +127,28 @@ class TestMissionControlPortal(unittest.TestCase):
         self.assertIsNone(new_sup.active_conversation_id)
         self.assertEqual(len(new_sup.session_history), 0)
 
+    def test_agent_limits_endpoint(self):
+        """Verify /api/agent/limits returns rolling 5-hour and weekly quota structure."""
+        res = self.client.get("/api/agent/limits")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "healthy")
+        self.assertIn("tier", data)
+        self.assertIn("five_hour", data)
+        self.assertIn("weekly", data)
+
+        five_hour = data["five_hour"]
+        self.assertIn("percent_remaining", five_hour)
+        self.assertIn("used", five_hour)
+        self.assertIn("budget", five_hour)
+        self.assertIn("resets_in", five_hour)
+
+        weekly = data["weekly"]
+        self.assertIn("percent_remaining", weekly)
+        self.assertIn("used", weekly)
+        self.assertIn("budget", weekly)
+        self.assertIn("resets_on", weekly)
+
 
 if __name__ == "__main__":
     unittest.main()

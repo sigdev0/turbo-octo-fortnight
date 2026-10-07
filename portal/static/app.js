@@ -18,13 +18,23 @@ document.addEventListener("DOMContentLoaded", () => {
   initAgentDispatcher();
   initServiceControls();
   loadAudioGallery();
+  fetchAgentLimits();
 
   document.getElementById("btnRefresh").addEventListener("click", () => {
     fetchTelemetry();
     fetchServices();
     loadAudioGallery();
+    fetchAgentLimits();
     showToast("Refreshed homelab data 🔄");
   });
+
+  const btnRefreshLimits = document.getElementById("btnRefreshLimits");
+  if (btnRefreshLimits) {
+    btnRefreshLimits.addEventListener("click", () => {
+      fetchAgentLimits();
+      showToast("Rate limits & quota synced ⚡");
+    });
+  }
 
   const scrollBtn = document.getElementById("btnToggleScroll");
   scrollBtn.addEventListener("click", () => {
@@ -186,6 +196,72 @@ function initLogWebSocket() {
 }
 
 // -------------------------------------------------------------
+// Antigravity Rate Limits & Quota
+// -------------------------------------------------------------
+async function fetchAgentLimits() {
+  try {
+    const res = await fetch("/api/agent/limits");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const tierBadge = document.getElementById("quotaTierBadge");
+    if (tierBadge && data.tier) {
+      tierBadge.textContent = `🟢 ${data.tier}`;
+    }
+
+    // 5-Hour Rolling Limit
+    const fiveHour = data.five_hour;
+    if (fiveHour) {
+      const pct = fiveHour.percent_remaining;
+      const fiveHourPct = document.getElementById("fiveHourPct");
+      const fiveHourBar = document.getElementById("fiveHourBar");
+      const fiveHourUsed = document.getElementById("fiveHourUsed");
+      const fiveHourReset = document.getElementById("fiveHourReset");
+
+      if (fiveHourPct) fiveHourPct.textContent = `${pct}% remaining`;
+      if (fiveHourBar) {
+        fiveHourBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+        if (pct < 20) {
+          fiveHourBar.className = "progress-bar-fill progress-rose";
+        } else if (pct < 50) {
+          fiveHourBar.className = "progress-bar-fill progress-purple";
+        } else {
+          fiveHourBar.className = "progress-bar-fill progress-emerald";
+        }
+      }
+      if (fiveHourUsed) fiveHourUsed.textContent = `${fiveHour.used} / ${fiveHour.budget} prompts used`;
+      if (fiveHourReset) fiveHourReset.textContent = fiveHour.resets_in;
+    }
+
+    // Weekly Limit
+    const weekly = data.weekly;
+    if (weekly) {
+      const pct = weekly.percent_remaining;
+      const weeklyPct = document.getElementById("weeklyPct");
+      const weeklyBar = document.getElementById("weeklyBar");
+      const weeklyUsed = document.getElementById("weeklyUsed");
+      const weeklyReset = document.getElementById("weeklyReset");
+
+      if (weeklyPct) weeklyPct.textContent = `${pct}% remaining`;
+      if (weeklyBar) {
+        weeklyBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+        if (pct < 20) {
+          weeklyBar.className = "progress-bar-fill progress-rose";
+        } else if (pct < 50) {
+          weeklyBar.className = "progress-bar-fill progress-purple";
+        } else {
+          weeklyBar.className = "progress-bar-fill progress-cyan";
+        }
+      }
+      if (weeklyUsed) weeklyUsed.textContent = `${weekly.used} / ${weekly.budget} prompts used`;
+      if (weeklyReset) weeklyReset.textContent = weekly.resets_on;
+    }
+  } catch (err) {
+    console.error("Failed to fetch agent limits:", err);
+  }
+}
+
+// -------------------------------------------------------------
 // Cross-Device Agent Session Management
 // -------------------------------------------------------------
 async function fetchAgentSession() {
@@ -295,6 +371,7 @@ async function handleNewSession() {
       if (output) output.textContent = "";
       const streamPanel = document.getElementById("agentStreamPanel");
       if (streamPanel) streamPanel.style.display = "none";
+      fetchAgentLimits();
       showToast("Started fresh agent session ✨");
     }
   } catch (e) {
@@ -330,6 +407,7 @@ function initAgentDispatcher() {
   if (btnSync) {
     btnSync.addEventListener("click", () => {
       fetchAgentSession();
+      fetchAgentLimits();
       showToast("Session synced across devices 🔄");
     });
   }
@@ -345,6 +423,7 @@ function initAgentDispatcher() {
         btn.disabled = false;
         btn.textContent = "🚀 Dispatch";
         fetchAgentSession();
+        fetchAgentLimits();
         return;
       }
       if (

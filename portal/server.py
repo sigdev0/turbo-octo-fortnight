@@ -7,8 +7,16 @@ asset streaming, and the modern responsive Web Dashboard SPA.
 import asyncio
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -135,6 +143,12 @@ async def get_agent_session():
 async def reset_agent_session():
     """Clears current active conversation to start a fresh thread."""
     return supervisor.clear_agent_session()
+
+
+@app.get("/api/agent/limits")
+async def get_agent_limits():
+    """Returns 5-hour rolling limit and weekly limit quota estimates matching Antigravity Desktop."""
+    return supervisor.get_agent_limits()
 
 
 # ---------------------------------------------------------
