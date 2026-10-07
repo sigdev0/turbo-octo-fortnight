@@ -45,6 +45,7 @@ class HomelabSupervisor:
         self.session_file = self.data_dir / "portal_agent_session.json"
         self.pid_file = self.data_dir / "omniforge.pid"
         self.log_file = self.logs_dir / "omniforge.log"
+        self.cartridge_config_file = self.data_dir / "cartridge_config.json"
         self.active_conversation_id: Optional[str] = None
         self.session_history: List[Dict[str, Any]] = []
         self._load_agent_session()
@@ -517,6 +518,90 @@ class HomelabSupervisor:
             if len(files) >= limit:
                 break
         return files
+
+    def get_cartridge_config(self) -> Dict[str, bool]:
+        """Loads cartridge enabled states from data/cartridge_config.json."""
+        if self.cartridge_config_file.exists():
+            try:
+                return json.loads(self.cartridge_config_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.error(f"Failed to read cartridge config: {e}")
+        return {}
+
+    def set_cartridge_config(self, config: Dict[str, bool]) -> None:
+        """Saves cartridge enabled states to data/cartridge_config.json."""
+        try:
+            self.cartridge_config_file.parent.mkdir(parents=True, exist_ok=True)
+            self.cartridge_config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Failed to save cartridge config: {e}")
+
+    def get_cartridges(self) -> List[Dict[str, Any]]:
+        """
+        Discovers all available cartridges and annotates them with enabled state,
+        metadata, command, description, and display icon.
+        """
+        cartridges_dir = BASE_DIR / "cartridges"
+        cfg = self.get_cartridge_config()
+        results = []
+
+        icon_map = {
+            "bedtime_story": "🌙",
+            "podcast_clipper": "🎙️",
+            "morning_affirmation": "☀️",
+        }
+
+        display_name_map = {
+            "bedtime_story": "Bedtime Story",
+            "podcast_clipper": "Podcast Clipper",
+            "morning_affirmation": "Morning Affirmation",
+        }
+
+        cmd_map = {
+            "bedtime_story": "story",
+            "podcast_clipper": "clip",
+            "morning_affirmation": "morning",
+        }
+
+        desc_map = {
+            "bedtime_story": "Screen-free personalized bedtime audio journeys with ambient soundscapes and neural voice narration.",
+            "podcast_clipper": "Automated vertical 9:16 short extractor from podcasts and YouTube video URLs.",
+            "morning_affirmation": "Empowering daily morning affirmations and energy routines in English and Indonesian.",
+        }
+
+        if cartridges_dir.exists():
+            for f in sorted(cartridges_dir.glob("*.py")):
+                if f.name.startswith("__") or f.name == "base.py" or f.stem == "story_library":
+                    continue
+                cid = f.stem
+                is_enabled = cfg.get(cid, True)
+                results.append({
+                    "id": cid,
+                    "name": display_name_map.get(cid, cid.replace("_", " ").title()),
+                    "command": cmd_map.get(cid, cid),
+                    "description": desc_map.get(cid, "OmniForge modular cartridge capability."),
+                    "icon": icon_map.get(cid, "⚡"),
+                    "enabled": is_enabled,
+                })
+        return results
+
+    def toggle_cartridge(self, cartridge_id: str, enabled: Optional[bool] = None) -> Dict[str, Any]:
+        """Toggles or sets the enabled state for a specific cartridge."""
+        cfg = self.get_cartridge_config()
+        current_state = cfg.get(cartridge_id, True)
+        new_state = (not current_state) if enabled is None else bool(enabled)
+        cfg[cartridge_id] = new_state
+        self.set_cartridge_config(cfg)
+
+        cartridges = self.get_cartridges()
+        updated = next((c for c in cartridges if c["id"] == cartridge_id), None)
+        return {
+            "status": "success",
+            "cartridge_id": cartridge_id,
+            "enabled": new_state,
+            "cartridge": updated,
+            "all_cartridges": cartridges,
+        }
 
     async def run_agent_prompt(
         self,

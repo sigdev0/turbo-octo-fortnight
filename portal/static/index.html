@@ -199,11 +199,32 @@
                 </div>
               </div>
               <div class="service-actions">
+                <label class="switch-container" title="Master Bot Power Switch">
+                  <input type="checkbox" id="svcToggle" checked>
+                  <span class="switch-slider"></span>
+                </label>
                 <button class="btn btn-secondary" id="btnRestartSvc">🔄 Restart</button>
                 <button class="btn btn-danger" id="btnStopSvc">⏹️ Stop</button>
                 <button class="btn btn-primary" id="btnStartSvc">▶️ Start</button>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- OmniForge Cartridge Deck -->
+        <section class="section-card cartridge-card-deck">
+          <div class="section-header cartridge-deck-header">
+            <div>
+              <h2>🧩 OmniForge Cartridge Deck</h2>
+              <span class="section-subtitle">Hot-swappable AI capabilities and Telegram pipeline toggles</span>
+            </div>
+            <div class="cartridge-deck-actions">
+              <span class="cartridge-active-badge" id="cartridgeCountBadge">3/3 Active</span>
+              <button class="btn btn-sm btn-secondary" id="btnRefreshCartridges" title="Sync cartridge states">🔄 Sync</button>
+            </div>
+          </div>
+          <div class="cartridge-grid" id="cartridgeGrid">
+            <div class="gallery-empty">Scanning for cartridges...</div>
           </div>
         </section>
 

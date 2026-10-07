@@ -50,8 +50,36 @@ class OmniForgeBot:
         self.user_languages: Dict[str, str] = self._load_user_preferences()
         self.user_profiles_file = DATA_DIR / "user_profiles.json"
         self.user_profiles: Dict[str, Dict[str, Any]] = self._load_user_profiles()
+        self.cartridge_config_file = DATA_DIR / "cartridge_config.json"
         self.user_states: Dict[str, Dict[str, Any]] = {}
         self.load_cartridges()
+
+    def get_cartridge_config(self) -> Dict[str, bool]:
+        """Loads cartridge enabled states from data/cartridge_config.json."""
+        if self.cartridge_config_file.exists():
+            try:
+                with open(self.cartridge_config_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load cartridge config: {e}")
+        return {}
+
+    def is_cartridge_enabled(self, name_or_cmd: str) -> bool:
+        """Checks if a cartridge is active based on data/cartridge_config.json."""
+        config = self.get_cartridge_config()
+        clean = name_or_cmd.lower().strip("/")
+        if clean in config:
+            return bool(config[clean])
+
+        for cmd, instance in self.cartridges.items():
+            if cmd == clean or instance.name.lower() == clean:
+                if instance.name in config:
+                    return bool(config[instance.name])
+                if cmd in config:
+                    return bool(config[cmd])
+                break
+
+        return True
 
     def _load_user_preferences(self) -> Dict[str, str]:
         if self.user_prefs_file.exists():
@@ -889,6 +917,16 @@ class OmniForgeBot:
             await update.message.reply_text(f"Unknown command `/{raw_cmd}`. Use `/start` to see available commands.")
             return
 
+        if not self.is_cartridge_enabled(cartridge.name):
+            lang = self.resolve_user_language(update)
+            msg = (
+                f"⚠️ Cartridge *{cartridge.name}* (/{cmd}) sedang dinonaktifkan di OmniForge Mission Control."
+                if lang == "id" else
+                f"⚠️ Cartridge *{cartridge.name}* (/{cmd}) is currently disabled in OmniForge Mission Control."
+            )
+            await update.message.reply_text(msg, parse_mode="Markdown")
+            return
+
         # Parse args
         args = list(context.args or [])
         if "id" in [a.lower() for a in args]:
@@ -1409,6 +1447,12 @@ class OmniForgeBot:
         cartridge = self.cartridges.get(cmd)
         if not cartridge:
             return {"status": "error", "message": f"Cartridge '{cmd}' not found"}
+
+        if not self.is_cartridge_enabled(cartridge.name):
+            return {
+                "status": "error",
+                "message": f"Cartridge '{cartridge.name}' (/{cmd}) is currently disabled in Mission Control."
+            }
 
         if cmd == "story":
             payload["name"] = args[0] if len(args) >= 1 else "Little Explorer"

@@ -53,12 +53,35 @@ class TestMissionControlPortal(unittest.TestCase):
         self.assertIn("omniforge.service", svc_names)
 
     def test_cartridges_endpoint(self):
-        """Verify /api/cartridges returns discovered cartridges."""
+        """Verify /api/cartridges returns discovered cartridges with enabled status."""
         res = self.client.get("/api/cartridges")
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertIn("cartridges", data)
         self.assertGreaterEqual(data.get("total", 0), 1)
+        self.assertIn("active_count", data)
+
+    def test_cartridge_toggle_endpoint(self):
+        """Verify /api/cartridges/{id}/toggle updates enabled state."""
+        # 1. Toggle bedtime_story off
+        res1 = self.client.post("/api/cartridges/bedtime_story/toggle", json={"enabled": False})
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.json()
+        self.assertEqual(data1.get("status"), "success")
+        self.assertFalse(data1.get("enabled"))
+
+        # Verify reflected in get_cartridges
+        res_check = self.client.get("/api/cartridges")
+        c_list = res_check.json().get("cartridges", [])
+        story_c = next((c for c in c_list if c["id"] == "bedtime_story"), None)
+        self.assertIsNotNone(story_c)
+        self.assertFalse(story_c.get("enabled"))
+
+        # 2. Toggle bedtime_story back on
+        res2 = self.client.post("/api/cartridges/bedtime_story/toggle", json={"enabled": True})
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+        self.assertTrue(data2.get("enabled"))
 
     def test_assets_endpoint(self):
         """Verify /api/assets returns file list."""

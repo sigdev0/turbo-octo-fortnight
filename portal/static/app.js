@@ -18,16 +18,26 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogWebSocket();
   initAgentDispatcher();
   initServiceControls();
+  fetchCartridges();
   loadAudioGallery();
   fetchAgentLimits();
 
   document.getElementById("btnRefresh").addEventListener("click", () => {
     fetchTelemetry();
     fetchServices();
+    fetchCartridges();
     loadAudioGallery();
     fetchAgentLimits();
     showToast("Refreshed homelab data 🔄");
   });
+
+  const btnRefreshCartridges = document.getElementById("btnRefreshCartridges");
+  if (btnRefreshCartridges) {
+    btnRefreshCartridges.addEventListener("click", () => {
+      fetchCartridges();
+      showToast("Cartridge states synced 🔄");
+    });
+  }
 
   const btnRefreshLimits = document.getElementById("btnRefreshLimits");
   if (btnRefreshLimits) {
@@ -99,8 +109,10 @@ function initTabNavigation() {
 function initTelemetryPolling() {
   fetchTelemetry();
   fetchServices();
+  fetchCartridges();
   setInterval(fetchTelemetry, 2500);
   setInterval(fetchServices, 3000);
+  setInterval(fetchCartridges, 5000);
 }
 
 async function fetchTelemetry() {
@@ -169,8 +181,10 @@ async function fetchServices() {
     const svc = (data.services || [])[0];
     if (!svc) return;
 
-    const dot = document.getElementById("svcDot");
-    const meta = document.getElementById("svcMeta");
+    const svcToggle = document.getElementById("svcToggle");
+    if (svcToggle) {
+      svcToggle.checked = Boolean(svc.active);
+    }
 
     if (svc.active) {
       dot.className = "status-indicator active";
@@ -192,6 +206,14 @@ function initServiceControls() {
   document.getElementById("btnRestartSvc").addEventListener("click", () => handleServiceAction("restart"));
   document.getElementById("btnStopSvc").addEventListener("click", () => handleServiceAction("stop"));
   document.getElementById("btnStartSvc").addEventListener("click", () => handleServiceAction("start"));
+
+  const svcToggle = document.getElementById("svcToggle");
+  if (svcToggle) {
+    svcToggle.addEventListener("change", (e) => {
+      const action = e.target.checked ? "start" : "stop";
+      handleServiceAction(action);
+    });
+  }
 }
 
 async function handleServiceAction(action) {
@@ -621,6 +643,108 @@ async function loadAudioGallery() {
     `).join("");
   } catch (err) {
     container.innerHTML = `<div class="gallery-empty">Error loading audio assets.</div>`;
+  }
+}
+
+// -------------------------------------------------------------
+// Cartridge Capabilities & Toggles
+// -------------------------------------------------------------
+async function fetchCartridges() {
+  try {
+    const res = await fetch("/api/cartridges");
+    if (!res.ok) return;
+    const data = await res.json();
+    renderCartridges(data.cartridges || [], data.active_count, data.total);
+  } catch (err) {
+    console.error("Failed to fetch cartridges:", err);
+  }
+}
+
+function renderCartridges(cartridges, activeCount, totalCount) {
+  const grid = document.getElementById("cartridgeGrid");
+  const badge = document.getElementById("cartridgeCountBadge");
+  if (!grid) return;
+
+  if (badge && totalCount !== undefined) {
+    badge.textContent = `${activeCount}/${totalCount} Active`;
+    if (activeCount === 0) {
+      badge.style.color = "var(--text-muted)";
+      badge.style.borderColor = "var(--border)";
+    } else {
+      badge.style.color = "#22c55e";
+      badge.style.borderColor = "rgba(34, 197, 94, 0.3)";
+    }
+  }
+
+  if (!cartridges.length) {
+    grid.innerHTML = `<div class="gallery-empty">No cartridges found in cartridges/ directory.</div>`;
+    return;
+  }
+
+  grid.innerHTML = cartridges.map(c => `
+    <div class="cartridge-card ${c.enabled ? 'active' : 'disabled'}" id="card-${c.id}">
+      <div class="cartridge-card-top">
+        <div class="cartridge-card-title-group">
+          <span class="cartridge-icon">${c.icon || '⚡'}</span>
+          <div>
+            <div class="cartridge-title">${c.name}</div>
+            <span class="cmd-pill">/${c.command}</span>
+          </div>
+        </div>
+        <label class="switch-container" title="Toggle ${c.name} Cartridge">
+          <input type="checkbox" class="cartridge-switch" data-cartridge="${c.id}" ${c.enabled ? 'checked' : ''}>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <p class="cartridge-desc">${c.description}</p>
+      <div class="cartridge-footer">
+        <span class="cartridge-status-text" id="status-${c.id}">
+          ${c.enabled ? '🟢 Pipeline Active' : '⚪ Disabled (Offline)'}
+        </span>
+      </div>
+    </div>
+  `).join("");
+
+  grid.querySelectorAll(".cartridge-switch").forEach(sw => {
+    sw.addEventListener("change", async (e) => {
+      const cid = e.target.dataset.cartridge;
+      const isEnabled = e.target.checked;
+      await handleCartridgeToggle(cid, isEnabled);
+    });
+  });
+}
+
+async function handleCartridgeToggle(cartridgeId, enabled) {
+  showToast(`Updating cartridge ${cartridgeId}... ⏳`);
+  try {
+    const res = await fetch(`/api/cartridges/${cartridgeId}/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled })
+    });
+    if (!res.ok) throw new Error("Toggle request failed");
+    const data = await res.json();
+
+    const card = document.getElementById(`card-${cartridgeId}`);
+    const statusText = document.getElementById(`status-${cartridgeId}`);
+    if (card) {
+      if (enabled) {
+        card.classList.remove("disabled");
+        card.classList.add("active");
+      } else {
+        card.classList.remove("active");
+        card.classList.add("disabled");
+      }
+    }
+    if (statusText) {
+      statusText.textContent = enabled ? "🟢 Pipeline Active" : "⚪ Disabled (Offline)";
+    }
+
+    fetchCartridges();
+    showToast(`Cartridge /${cartridgeId} is now ${enabled ? 'ACTIVE ⚡' : 'DISABLED ⚪'}`);
+  } catch (err) {
+    showToast(`Failed to toggle ${cartridgeId}: ${err.message}`, true);
+    fetchCartridges();
   }
 }
 

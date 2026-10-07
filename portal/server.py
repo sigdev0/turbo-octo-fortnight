@@ -18,7 +18,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -116,17 +116,28 @@ async def get_asset(filename: str):
 @app.get("/api/cartridges")
 async def get_cartridges():
     """Returns loaded OmniForge cartridges and capabilities."""
-    cartridges_dir = BASE_DIR / "cartridges"
-    found = []
-    if cartridges_dir.exists():
-        for f in cartridges_dir.glob("*.py"):
-            if not f.name.startswith("__") and f.name != "base.py":
-                found.append(f.stem)
+    cartridges = supervisor.get_cartridges()
+    active_count = sum(1 for c in cartridges if c.get("enabled", True))
     return {
-        "cartridges": found,
-        "total": len(found),
+        "cartridges": cartridges,
+        "total": len(cartridges),
+        "active_count": active_count,
         "engine": "OmniForge V2 Deep Sleep & Autonomous Pipelines"
     }
+
+
+@app.post("/api/cartridges/{cartridge_id}/toggle")
+async def toggle_cartridge(cartridge_id: str, request: Request):
+    """Toggles or sets the enabled status of a cartridge."""
+    enabled = None
+    try:
+        body = await request.json()
+        if "enabled" in body:
+            enabled = bool(body["enabled"])
+    except Exception:
+        pass
+    res = supervisor.toggle_cartridge(cartridge_id, enabled=enabled)
+    return res
 
 
 # ---------------------------------------------------------

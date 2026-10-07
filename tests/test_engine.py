@@ -341,5 +341,24 @@ class TestOmniForgeEngine(unittest.TestCase):
             effective_user = GlobalUser()
         self.assertEqual(self.bot.resolve_user_language(GlobalUpdate()), "en")
 
+    def test_cartridge_disable_gating(self):
+        """Verify that disabling a cartridge in cartridge_config.json gates execution."""
+        import json
+        orig_cfg = self.bot.get_cartridge_config()
+        try:
+            cfg = dict(orig_cfg)
+            cfg["morning_affirmation"] = False
+            self.bot.cartridge_config_file.write_text(json.dumps(cfg), encoding="utf-8")
+
+            self.assertFalse(self.bot.is_cartridge_enabled("morning"))
+            self.assertFalse(self.bot.is_cartridge_enabled("morning_affirmation"))
+
+            # Simulate command should reject disabled cartridge
+            res = asyncio.run(self.bot.simulate_command("/morning"))
+            self.assertEqual(res.get("status"), "error")
+            self.assertIn("disabled", res.get("message", "").lower())
+        finally:
+            self.bot.cartridge_config_file.write_text(json.dumps(orig_cfg), encoding="utf-8")
+
 if __name__ == "__main__":
     unittest.main()

@@ -397,7 +397,182 @@ body {
 
 .service-actions {
   display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Master & Cartridge Toggle Switch */
+.switch-container {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch-container input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 24px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #cbd5e1;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.switch-container input:checked + .switch-slider {
+  background-color: #0284c7;
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.switch-container input:checked + .switch-slider:before {
+  transform: translateX(20px);
+  background-color: #ffffff;
+}
+
+/* Cartridge Deck Section */
+.cartridge-card-deck {
+  margin-top: 0.25rem;
+}
+
+.cartridge-deck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.cartridge-deck-actions {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.cartridge-active-badge {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+  transition: all 0.2s ease;
+}
+
+.cartridge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.cartridge-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.25s ease;
+}
+
+.cartridge-card:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.cartridge-card.disabled {
+  opacity: 0.6;
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.cartridge-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.cartridge-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cartridge-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.cartridge-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.cmd-pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 0.05rem 0.45rem;
+  border-radius: 6px;
+  margin-top: 0.2rem;
+}
+
+.cartridge-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  flex: 1;
+}
+
+.cartridge-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.cartridge-status-text {
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: #22c55e;
+}
+
+.cartridge-card.disabled .cartridge-status-text {
+  color: var(--text-muted);
 }
 
 /* Buttons */
