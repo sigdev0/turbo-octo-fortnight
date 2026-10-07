@@ -229,7 +229,7 @@ async def serve_portal():
     """Serves the main Mission Control single-page application."""
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
-        return HTMLResponse(content=index_file.read_text(), status_code=200)
+        return HTMLResponse(content=index_file.read_text(encoding="utf-8"), status_code=200)
     return HTMLResponse(content="<h1>Mission Control Dashboard Initializing...</h1>", status_code=200)
 
 

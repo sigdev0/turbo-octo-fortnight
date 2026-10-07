@@ -53,7 +53,7 @@ class HomelabSupervisor:
         """Loads persistent session state and history across device connections."""
         if self.session_file.exists():
             try:
-                data = json.loads(self.session_file.read_text())
+                data = json.loads(self.session_file.read_text(encoding="utf-8"))
                 self.active_conversation_id = data.get("active_conversation_id")
                 self.session_history = data.get("history", [])
             except Exception:
@@ -68,7 +68,7 @@ class HomelabSupervisor:
                 "history": self.session_history[-50:],
                 "updated_at": time.time()
             }
-            self.session_file.write_text(json.dumps(payload, indent=2))
+            self.session_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except Exception:
             pass
 
@@ -400,7 +400,10 @@ class HomelabSupervisor:
         else:
             # Cross-platform log tailer for Windows and non-systemd environments
             if not self.log_file.exists():
-                self.log_file.write_text(f"[OmniForge Log Stream Initialized at {time.strftime('%Y-%m-%d %H:%M:%S')}]\n")
+                self.log_file.write_text(
+                    f"[OmniForge Log Stream Initialized at {time.strftime('%Y-%m-%d %H:%M:%S')}]\n",
+                    encoding="utf-8"
+                )
 
             try:
                 with open(self.log_file, "r", encoding="utf-8", errors="replace") as f:
