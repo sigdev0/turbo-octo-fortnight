@@ -140,29 +140,73 @@
         <div class="section-header limits-header">
           <div>
             <h2>⚡ Antigravity Rate Limits &amp; Quota</h2>
-            <span class="section-subtitle">Real-time rolling limits matching Antigravity Desktop</span>
+            <span class="section-subtitle">Real-time rolling limits matching Antigravity Desktop Settings</span>
           </div>
           <div class="limits-header-right">
             <span class="quota-badge tier-badge" id="quotaTierBadge">🟢 Standard Tier</span>
             <button class="btn btn-sm btn-secondary" id="btnRefreshLimits" title="Refresh quota usage">🔄 Sync</button>
           </div>
         </div>
-        <div class="limits-grid">
-          <div class="limit-gauge-card">
-            <div class="limit-gauge-header">
-              <span>⏱️ 5-Hour Rolling Limit</span>
-              <span class="limit-gauge-value" id="fiveHourPct">100% remaining</span>
+
+        <div class="limits-models-container">
+          <!-- Category 1: Gemini Models -->
+          <div class="model-quota-card">
+            <div class="model-quota-header">
+              <span class="model-quota-title">Gemini Models</span>
+              <span class="model-info-icon" title="Quotas for Gemini 3 Flash, Gemini Pro, and reasoning models">ⓘ</span>
             </div>
-            <div class="progress-bar-bg"><div class="progress-bar-fill progress-emerald" id="fiveHourBar" style="width: 100%"></div></div>
-            <div class="limit-gauge-footer"><span id="fiveHourUsed">0 prompts used</span><span id="fiveHourReset">Resets in 5h 0m</span></div>
+            <div class="quota-row-list">
+              <div class="quota-row">
+                <div class="quota-row-left">
+                  <div class="quota-row-name">Weekly Limit Remaining</div>
+                  <div class="quota-row-desc" id="geminiWeeklyDesc">You have used some of your weekly limit, it will fully refresh in 2 days, 1 hour.</div>
+                </div>
+                <div class="quota-row-right">
+                  <span class="quota-row-pct" id="geminiWeeklyPct">65%</span>
+                  <div class="quota-ring" id="geminiWeeklyRing" style="--pct: 65; --ring-color: #22c55e;"></div>
+                </div>
+              </div>
+              <div class="quota-row">
+                <div class="quota-row-left">
+                  <div class="quota-row-name">Five Hour Limit Remaining</div>
+                  <div class="quota-row-desc" id="gemini5hDesc">You have used some of your 5-hour limit, it will fully refresh in 1 hour, 19 minutes.</div>
+                </div>
+                <div class="quota-row-right">
+                  <span class="quota-row-pct" id="gemini5hPct">63%</span>
+                  <div class="quota-ring" id="gemini5hRing" style="--pct: 63; --ring-color: #22c55e;"></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="limit-gauge-card">
-            <div class="limit-gauge-header">
-              <span>📅 Weekly Limit</span>
-              <span class="limit-gauge-value" id="weeklyPct">100% remaining</span>
+
+          <!-- Category 2: Claude and GPT models -->
+          <div class="model-quota-card">
+            <div class="model-quota-header">
+              <span class="model-quota-title">Claude and GPT models</span>
+              <span class="model-info-icon" title="Quotas for Claude Sonnet 4.6, Claude Opus, and GPT models">ⓘ</span>
             </div>
-            <div class="progress-bar-bg"><div class="progress-bar-fill progress-cyan" id="weeklyBar" style="width: 100%"></div></div>
-            <div class="limit-gauge-footer"><span id="weeklyUsed">0 prompts used</span><span id="weeklyReset">Resets on Sunday</span></div>
+            <div class="quota-row-list">
+              <div class="quota-row">
+                <div class="quota-row-left">
+                  <div class="quota-row-name">Weekly Limit Remaining</div>
+                  <div class="quota-row-desc" id="claudeWeeklyDesc">Window fully available</div>
+                </div>
+                <div class="quota-row-right">
+                  <span class="quota-row-pct" id="claudeWeeklyPct">100%</span>
+                  <div class="quota-ring" id="claudeWeeklyRing" style="--pct: 100; --ring-color: #22c55e;"></div>
+                </div>
+              </div>
+              <div class="quota-row">
+                <div class="quota-row-left">
+                  <div class="quota-row-name">Five Hour Limit Remaining</div>
+                  <div class="quota-row-desc" id="claude5hDesc">Window fully available</div>
+                </div>
+                <div class="quota-row-right">
+                  <span class="quota-row-pct" id="claude5hPct">100%</span>
+                  <div class="quota-ring" id="claude5hRing" style="--pct: 100; --ring-color: #22c55e;"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -198,6 +198,27 @@ function initLogWebSocket() {
 // -------------------------------------------------------------
 // Antigravity Rate Limits & Quota
 // -------------------------------------------------------------
+function updateQuotaRow(pctId, descId, ringId, pctVal, descVal) {
+  const pctElem = document.getElementById(pctId);
+  const descElem = document.getElementById(descId);
+  const ringElem = document.getElementById(ringId);
+
+  const pct = Math.max(0, Math.min(100, Math.round(pctVal)));
+  if (pctElem) pctElem.textContent = `${pct}%`;
+  if (descElem && descVal) descElem.textContent = descVal;
+
+  if (ringElem) {
+    ringElem.style.setProperty("--pct", pct);
+    let color = "#22c55e";
+    if (pct < 15) {
+      color = "#ef4444";
+    } else if (pct < 30) {
+      color = "#f59e0b";
+    }
+    ringElem.style.setProperty("--ring-color", color);
+  }
+}
+
 async function fetchAgentLimits() {
   try {
     const res = await fetch("/api/agent/limits");
@@ -209,52 +230,48 @@ async function fetchAgentLimits() {
       tierBadge.textContent = `🟢 ${data.tier}`;
     }
 
-    // 5-Hour Rolling Limit
-    const fiveHour = data.five_hour;
-    if (fiveHour) {
-      const pct = fiveHour.percent_remaining;
-      const fiveHourPct = document.getElementById("fiveHourPct");
-      const fiveHourBar = document.getElementById("fiveHourBar");
-      const fiveHourUsed = document.getElementById("fiveHourUsed");
-      const fiveHourReset = document.getElementById("fiveHourReset");
-
-      if (fiveHourPct) fiveHourPct.textContent = `${pct}% remaining`;
-      if (fiveHourBar) {
-        fiveHourBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-        if (pct < 20) {
-          fiveHourBar.className = "progress-bar-fill progress-rose";
-        } else if (pct < 50) {
-          fiveHourBar.className = "progress-bar-fill progress-purple";
-        } else {
-          fiveHourBar.className = "progress-bar-fill progress-emerald";
-        }
+    // Gemini Models
+    if (data.gemini) {
+      if (data.gemini.weekly) {
+        updateQuotaRow(
+          "geminiWeeklyPct",
+          "geminiWeeklyDesc",
+          "geminiWeeklyRing",
+          data.gemini.weekly.percent_remaining,
+          data.gemini.weekly.description
+        );
       }
-      if (fiveHourUsed) fiveHourUsed.textContent = `${fiveHour.used} / ${fiveHour.budget} prompts used`;
-      if (fiveHourReset) fiveHourReset.textContent = fiveHour.resets_in;
+      if (data.gemini.five_hour) {
+        updateQuotaRow(
+          "gemini5hPct",
+          "gemini5hDesc",
+          "gemini5hRing",
+          data.gemini.five_hour.percent_remaining,
+          data.gemini.five_hour.description
+        );
+      }
     }
 
-    // Weekly Limit
-    const weekly = data.weekly;
-    if (weekly) {
-      const pct = weekly.percent_remaining;
-      const weeklyPct = document.getElementById("weeklyPct");
-      const weeklyBar = document.getElementById("weeklyBar");
-      const weeklyUsed = document.getElementById("weeklyUsed");
-      const weeklyReset = document.getElementById("weeklyReset");
-
-      if (weeklyPct) weeklyPct.textContent = `${pct}% remaining`;
-      if (weeklyBar) {
-        weeklyBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-        if (pct < 20) {
-          weeklyBar.className = "progress-bar-fill progress-rose";
-        } else if (pct < 50) {
-          weeklyBar.className = "progress-bar-fill progress-purple";
-        } else {
-          weeklyBar.className = "progress-bar-fill progress-cyan";
-        }
+    // Claude and GPT models
+    if (data.claude_gpt) {
+      if (data.claude_gpt.weekly) {
+        updateQuotaRow(
+          "claudeWeeklyPct",
+          "claudeWeeklyDesc",
+          "claudeWeeklyRing",
+          data.claude_gpt.weekly.percent_remaining,
+          data.claude_gpt.weekly.description
+        );
       }
-      if (weeklyUsed) weeklyUsed.textContent = `${weekly.used} / ${weekly.budget} prompts used`;
-      if (weeklyReset) weeklyReset.textContent = weekly.resets_on;
+      if (data.claude_gpt.five_hour) {
+        updateQuotaRow(
+          "claude5hPct",
+          "claude5hDesc",
+          "claude5hRing",
+          data.claude_gpt.five_hour.percent_remaining,
+          data.claude_gpt.five_hour.description
+        );
+      }
     }
   } catch (err) {
     console.error("Failed to fetch agent limits:", err);

@@ -128,26 +128,34 @@ class TestMissionControlPortal(unittest.TestCase):
         self.assertEqual(len(new_sup.session_history), 0)
 
     def test_agent_limits_endpoint(self):
-        """Verify /api/agent/limits returns rolling 5-hour and weekly quota structure."""
+        """Verify /api/agent/limits returns rolling 5-hour and weekly quota structure with Gemini and Claude/GPT pools."""
         res = self.client.get("/api/agent/limits")
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data.get("status"), "healthy")
         self.assertIn("tier", data)
+        self.assertIn("gemini", data)
+        self.assertIn("claude_gpt", data)
+
+        # Gemini model quota
+        gemini = data["gemini"]
+        self.assertEqual(gemini.get("name"), "Gemini Models")
+        self.assertIn("percent_remaining", gemini["weekly"])
+        self.assertIn("description", gemini["weekly"])
+        self.assertIn("percent_remaining", gemini["five_hour"])
+        self.assertIn("description", gemini["five_hour"])
+
+        # Claude & GPT model quota
+        claude = data["claude_gpt"]
+        self.assertEqual(claude.get("name"), "Claude and GPT models")
+        self.assertIn("percent_remaining", claude["weekly"])
+        self.assertIn("description", claude["weekly"])
+        self.assertIn("percent_remaining", claude["five_hour"])
+        self.assertIn("description", claude["five_hour"])
+
+        # Backwards-compatibility aliases
         self.assertIn("five_hour", data)
         self.assertIn("weekly", data)
-
-        five_hour = data["five_hour"]
-        self.assertIn("percent_remaining", five_hour)
-        self.assertIn("used", five_hour)
-        self.assertIn("budget", five_hour)
-        self.assertIn("resets_in", five_hour)
-
-        weekly = data["weekly"]
-        self.assertIn("percent_remaining", weekly)
-        self.assertIn("used", weekly)
-        self.assertIn("budget", weekly)
-        self.assertIn("resets_on", weekly)
 
 
 if __name__ == "__main__":
