@@ -393,7 +393,7 @@ class HomelabSupervisor:
                 creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
 
             proc = subprocess.Popen(
-                [sys.executable, "-m", "core.bot", "--run"],
+                [sys.executable, "main.py", "--run"],
                 cwd=str(BASE_DIR),
                 stdout=log_out,
                 stderr=subprocess.STDOUT,

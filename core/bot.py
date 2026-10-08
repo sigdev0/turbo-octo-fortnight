@@ -1476,3 +1476,8 @@ class OmniForgeBot:
         app = self.build_application()
         logger.info(f"Starting OmniForge Telegram Bot with {len(self.cartridges)} cartridges...")
         app.run_polling(drop_pending_updates=True)
+
+
+if __name__ == "__main__":
+    bot = OmniForgeBot()
+    bot.run_polling()
