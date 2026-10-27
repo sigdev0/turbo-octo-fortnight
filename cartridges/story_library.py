@@ -5,8 +5,72 @@ incorporating authentic Indonesian storytelling archetypes and Global English tr
 """
 
 from typing import Dict, Tuple, Any
+import re
 
-# ==============================================================================
+class GrammarNormalizer:
+    """
+    Context-aware grammar and phrasing normalizer.
+    Prevents awkward 'Mad-Libs' style grammatical collisions when inserting user keywords
+    into narrative templates (e.g. cleans leading prepositions, conjunctions, and awkward junctions).
+    """
+
+    @staticmethod
+    def clean_name(name: str, lang: str = "id") -> str:
+        clean = re.sub(r"[^\w\s-]", "", (name or "").strip()).title()
+        if not clean or len(clean) < 2:
+            return "Sahabat Cilik" if lang == "id" else "Little Dreamer"
+        return clean
+
+    @staticmethod
+    def clean_theme(theme: str, lang: str = "id") -> str:
+        t = (theme or "").strip()
+        if not t:
+            return "alam mimpi yang damai" if lang == "id" else "a peaceful starlit world"
+        # Strip leading prepositions/articles
+        if lang == "id":
+            t = re.sub(r"^(di\s+dalam|di\s+atas|di\s+bawah|di|ke|dari|pada|tentang|sebuah|suatu|negeri|alam|teluk)\s+", "", t, flags=re.IGNORECASE).strip()
+        else:
+            t = re.sub(r"^(in\s+the|inside\s+the|at\s+the|in|into|to|from|about|the|a|an|kingdom\s+of|realm\s+of)\s+", "", t, flags=re.IGNORECASE).strip()
+        return t or theme
+
+    @staticmethod
+    def clean_lesson(lesson: str, lang: str = "id") -> str:
+        l = (lesson or "").strip()
+        if not l:
+            return "kebaikan hati" if lang == "id" else "gentle kindness"
+        if lang == "id":
+            l = re.sub(r"^(dan|dengan|tentang|nilai)\s+", "", l, flags=re.IGNORECASE).strip()
+        else:
+            l = re.sub(r"^(and|with|about|the)\s+", "", l, flags=re.IGNORECASE).strip()
+        return l or lesson
+
+    @staticmethod
+    def format_theme_clause(theme: str, lang: str = "id") -> str:
+        """
+        Cleans the theme so that slotting into templates reads naturally
+        without jarring juxtapositions or location stutter.
+        """
+        cleaned = GrammarNormalizer.clean_theme(theme, lang=lang)
+        return cleaned
+    @staticmethod
+    def format_lesson_clause(lesson: str, lang: str = "id") -> str:
+        """
+        Formats the moral/lesson into a natural virtues clause,
+        preventing double conjunctions like 'kehangatan dan keberanian dan ketenangan'.
+        """
+        cleaned = GrammarNormalizer.clean_lesson(lesson, lang=lang)
+        if lang == "id":
+            lowered = cleaned.lower()
+            if " dan " in lowered or " serta " in lowered:
+                # Transform 'keberanian dan ketenangan' -> 'keberanian yang penuh ketenangan'
+                return re.sub(r"\s+dan\s+", " yang penuh ", cleaned, count=1, flags=re.IGNORECASE)
+            return cleaned
+        else:
+            lowered = cleaned.lower()
+            if " and " in lowered:
+                # Transform 'courage and patience' -> 'courage alongside patience'
+                return re.sub(r"\s+and\s+", " alongside ", cleaned, count=1, flags=re.IGNORECASE)
+            return cleaned
 # 1. BAHASA INDONESIA: TODDLER (Age <= 3) Target: 380 - 450 words
 # ==============================================================================
 
@@ -114,7 +178,7 @@ def _toddler_kunang_id(name: str, age: int, theme: str, lesson: str) -> str:
         f"Si kecil {name} kini berbaring santai di tempat tidurnya yang empuk, bersiap untuk mengistirahatkan tubuh mungilnya. "
         f"Tarik napas pelan-pelan... rasakan udara malam yang sejuk mengalir tenang ke dalam dadamu... "
         f"lalu hembuskan napasmu dengan sangat lembut... melepaskan segala rasa lelah bermain seharian ini... "
-        f"Selimut tidurmu terasa begitu hangat membungkus ujung jari-jari kakimu hingga ke pundakmu yang santai. "
+        f"Selimut tidurmu terasa begitu hangat membungkus tubuh mungilmu sampai menyelimuti pundak dan dadamu. "
         f"Di tepi sungai kecil yang airnya mengalir jernih tanpa riak, ribuan lentera kunang-kunang mulai menyalakan cahaya emasnya. "
         f"Cahaya kunang-kunang itu berkelip lembut dan teratur... menyala perlahan... lalu meredup pelan... bagai detak napas malam yang syahdu. "
         f"Seekor kunang-kunang kecil yang ramah hinggap perlahan di atas dahan bambu dekat peraduan si kecil {name}. "
@@ -805,4 +869,42 @@ def get_story_fallback(archetype: str, age: int, is_id: bool, name: str, theme: 
     tier = "toddler" if age <= 3 else "older"
     arch = archetype if (lang, tier, archetype) in TEMPLATES else "negeri_atas_awan"
     fn = TEMPLATES.get((lang, tier, arch), _toddler_awan_id)
-    return fn(name=name, age=age, theme=theme, lesson=lesson)
+
+    clean_name = GrammarNormalizer.clean_name(name, lang=lang)
+    clean_theme = GrammarNormalizer.format_theme_clause(theme, lang=lang)
+    clean_lesson = GrammarNormalizer.format_lesson_clause(lesson, lang=lang)
+    raw = fn(name=clean_name, age=age, theme=clean_theme, lesson=clean_lesson)
+
+    # If the template is a single flat block, insert 5-movement breath boundaries
+    # at natural sleep-descent junctions so VoiceSynthesizer paces 1.2s pauses.
+    if "\n\n" not in raw:
+        text = raw.strip()
+        markers = []
+        if lang == "id":
+            markers = ["Di tepian", "Di atas", "Di tepi", "Di langit", "Di kejauhan", "Jauh di dalam",
+                       "Seekor", "Si kecil", "Kancil kecil menatap", "Bulan tersenyum", "Kunang-kunang bersuara",
+                       "Bintang Kejora berbisik", "Kini suasana", "Kelopak matamu mulai",
+                       "Kamu adalah anak", "Pejamkan matamu perlahan", "Selamat tidur, sayangku"]
+        else:
+            markers = ["Resting beside", "High above", "Deep within", "Beside a calm", "High in the",
+                       "A gentle", "The sea turtle", "Kancil looks", "The golden moon", "The little firefly",
+                       "The Morning Star whispers", "Everything around", "Your eyelids are growing",
+                       "You are safe", "Close your eyes", "Goodnight, sweet", "Sleep tight"]
+        out = text
+        inserted = 0
+        for m in markers:
+            if inserted >= 4:
+                break
+            idx = out.find(m)
+            if idx > 120:
+                # only split on sentence boundary before the marker
+                cut = out.rfind("... ", 0, idx)
+                sep = "... "
+                if cut == -1:
+                    cut = out.rfind(". ", 0, idx)
+                    sep = ". "
+                if cut != -1:
+                    out = out[:cut + len(sep)].rstrip() + "\n\n" + out[cut + len(sep):].lstrip()
+                    inserted += 1
+        return out
+    return raw

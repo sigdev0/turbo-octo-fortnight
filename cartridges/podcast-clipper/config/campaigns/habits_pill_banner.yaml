@@ -1,0 +1,22 @@
+name: "Habits & Psychology (Mel Robbins / Huberman)"
+brief: "Target high-emotion moments, 15-second hug rule, relationships, nervous system regulation, and actionable habit shifts."
+target_topics:
+  - "relationships"
+  - "anxiety relief"
+  - "habit psychology"
+banner:
+  enabled: true
+  style: "pill"
+  text_color: "#FFEB3B"
+  bg_color: [18, 18, 22, 230]
+  border_color: [255, 235, 59, 180]
+  border_width: 3
+  y: 160
+ambience:
+  enabled: true
+  track: "assets/music/ambient_sleep_bed.mp3"
+  volume: 0.10
+logo:
+  enabled: false
+caption:
+  style: "hormozi"

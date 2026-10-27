@@ -64,7 +64,14 @@ def parse_json_array(text):
 ROOT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def rank(candidates, settings, prompt_path="prompts/rank_v1.txt", out_path=None):
+def rank(
+    candidates,
+    settings,
+    prompt_path="prompts/rank_v1.txt",
+    out_path=None,
+    campaign_brief=None,
+    target_topics=None,
+):
     if not os.path.exists(prompt_path):
         alt = os.path.join(ROOT_DIR, prompt_path)
         if os.path.exists(alt):
@@ -75,7 +82,21 @@ def rank(candidates, settings, prompt_path="prompts/rank_v1.txt", out_path=None)
         f"[{c['id']}] ({c['start']:.0f}s-{c['end']:.0f}s): {c['text']}"
         for c in candidates
     )
+    if campaign_brief:
+        brief_block = f"CAMPAIGN BRIEF & REQUIREMENTS:\n{campaign_brief}"
+        if target_topics:
+            topics_str = ", ".join(target_topics)
+            brief_block += f"\nTarget Topics: {topics_str}"
+        brief_block += "\nStrictly prioritize clips that align with this campaign brief. Discard off-brand moments."
+    else:
+        brief_block = "General Virality Mode: Select the highest-impact, most engaging moments for general audience appeal."
+
     prompt = template.replace("{candidates}", cand_text)
+    if "{campaign_context}" in prompt:
+        prompt = prompt.replace("{campaign_context}", brief_block)
+    elif campaign_brief:
+        prompt = brief_block + "\n\n" + prompt
+
     content = ""
     resp = {}
     used_model = ""
@@ -111,14 +132,29 @@ def rank(candidates, settings, prompt_path="prompts/rank_v1.txt", out_path=None)
         c = by_id.get(s["id"])
         if not c:
             continue
+        raw_tags = s.get("hashtags")
+        if isinstance(raw_tags, list):
+            tags = [t if t.startswith("#") else f"#{t}" for t in raw_tags]
+        elif isinstance(raw_tags, str):
+            tags = [t.strip() for t in raw_tags.split() if t.startswith("#")]
+        else:
+            tags = []
+
+        banner_hook = (s.get("banner_hook") or "").strip().upper()
+        if not banner_hook and s.get("title"):
+            words = s.get("title", "").split()[:6]
+            banner_hook = " ".join(words).upper()
+
         ranked.append(
             {
                 **c,
                 "score": s.get("score", 0),
                 "hook": s.get("hook", ""),
+                "banner_hook": banner_hook,
                 "reason": s.get("reason", ""),
                 "title": (s.get("title", "") or "")[:60],
                 "description": s.get("description", ""),
+                "hashtags": tags,
                 "thumbnail_s": float(s.get("thumbnail_s", (c["end"] - c["start"]) / 2)),
             }
         )

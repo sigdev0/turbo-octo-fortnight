@@ -37,6 +37,37 @@ def list_presets(presets_dir="config/presets"):
         return []
 
 
+def list_campaigns(campaigns_dir="config/campaigns"):
+    if not os.path.exists(campaigns_dir):
+        alt = os.path.join(ROOT_DIR, campaigns_dir)
+        if os.path.exists(alt):
+            campaigns_dir = alt
+    try:
+        return sorted(f[:-5] for f in os.listdir(campaigns_dir) if f.endswith((".yaml", ".yml")))
+    except OSError:
+        return []
+
+
+def load_campaign_profile(campaign=None, campaigns_dir="config/campaigns"):
+    if not campaign:
+        return {}
+    if isinstance(campaign, dict):
+        return campaign
+    cand = campaign if campaign.endswith((".yaml", ".yml")) else f"{campaign}.yaml"
+    paths_to_check = [
+        cand,
+        os.path.join(campaigns_dir, cand),
+        os.path.join(ROOT_DIR, campaigns_dir, cand),
+        os.path.join(ROOT_DIR, cand),
+    ]
+    for p in paths_to_check:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+    print(f"  [warn] campaign profile '{campaign}' not found; checked: {paths_to_check}")
+    return {}
+
+
 def apply_preset(settings, preset=None):
     if not preset:
         return settings
@@ -70,9 +101,22 @@ def process(
     skip_rank=False,
     preset=None,
     overrides=None,
+    campaign=None,
+    campaign_brief=None,
+    target_topics=None,
+    campaign_profile=None,
 ):
     settings = apply_preset(settings, preset)
     settings = apply_overrides(settings, overrides)
+    camp_prof = dict(campaign_profile or load_campaign_profile(campaign))
+    if campaign_brief:
+        camp_prof["brief"] = campaign_brief
+    if target_topics:
+        camp_prof["target_topics"] = target_topics
+    if not style and camp_prof.get("caption", {}).get("style"):
+        style = camp_prof["caption"]["style"]
+    settings["_campaign_profile"] = camp_prof
+
     paths = settings["paths"]
     work_dir = os.path.join(paths["work_dir"], name)
     out_dir = os.path.join(paths["output_dir"], name)
@@ -132,7 +176,13 @@ def process(
     else:
         print("[4/5] rank")
         t0 = time.monotonic()
-        ranked, rank_meta = rank(cands, settings, out_path=r_path)
+        ranked, rank_meta = rank(
+            cands,
+            settings,
+            out_path=r_path,
+            campaign_brief=camp_prof.get("brief"),
+            target_topics=camp_prof.get("target_topics"),
+        )
         stage_s["rank"] = max(0.0, round(time.monotonic() - t0, 1))
         for r in ranked[:5]:
             print(f"  [{r['id']}] score={r['score']} {r['hook'][:70]}")
@@ -140,7 +190,13 @@ def process(
     print("[5/5] clips")
     t0 = time.monotonic()
     made = cut_clips(
-        dl["source"], ranked, out_dir, settings, style=style, max_clips=max_clips
+        dl["source"],
+        ranked,
+        out_dir,
+        settings,
+        style=style,
+        max_clips=max_clips,
+        campaign_profile=camp_prof,
     )
     stage_s["clips"] = max(0.0, round(time.monotonic() - t0, 1))
     for m in made:
@@ -160,7 +216,13 @@ def process(
         _log_cost(entry)
     except OSError as e:
         print(f"  cost log skipped: {e}")
-    return {"download": dl, "transcript": t_path, "ranked": r_path, "clips": made}
+    return {
+        "download": dl,
+        "transcript": t_path,
+        "ranked": r_path,
+        "clips": made,
+        "campaign": camp_prof,
+    }
 
 
 def _slug(url, i):

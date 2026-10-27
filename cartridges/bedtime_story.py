@@ -98,42 +98,59 @@ class BedtimeStoryCartridge(BaseCartridge):
             return self._generate_fallback_script(name, age, theme, lesson, is_id=is_id, archetype=archetype)
 
         if is_id:
-            word_target = "380 hingga 480 kata" if age <= 3 else "650 hingga 850 kata"
+            word_target = "450 hingga 600 kata" if age <= 3 else "750 hingga 950 kata"
             system_prompt = (
-                "Anda adalah master penulis cerita pengantar tidur anak (bedtime audio storyteller) dan spesialis relaksasi tidur anak. "
-                "Tuliskan naskah audio cerita pengantar tidur yang SANGAT menenangkan, puitis, dan mendalam dalam Bahasa Indonesia yang indah. "
-                f"TARGET PANJANG NASKAH: {word_target}. JANGAN PERNAH membuat cerita pendek di bawah 350 kata!\n\n"
-                "STRUKTUR 5 GERAKAN RELAKSASI TIDUR:\n"
-                "1. Gerakan 1 (Grounding Kamar & Napas): Mengajak anak merasakan kehangatan selimut, menyelaraskan napas pelan (tarik napas... hembuskan perlahan).\n"
-                "2. Gerakan 2 (Eksplorasi Alam Nusantara): Memasuki dunia imajinasi dengan sentuhan alam/dongeng Nusantara (hutan pinisi bintang, pohon hayat kalpataru, sejuknya kebun teh di atas awan, lentera kunang-kunang). Bertemu sahabat satwa yang ramah dan mengantuk.\n"
-                "3. Gerakan 3 (Resolusi Lembut): Petualangan kecil yang selesai dengan damai berkat nilai kebaikan/kesabaran. Tanpa konflik tegang.\n"
-                "4. Gerakan 4 (Somatic Wind-Down): Seluruh alam dan hewan bersiap tidur, kelopak mata terasa berat, napas melambat, tubuh rileks tenggelam di kasur.\n"
-                "5. Gerakan 5 (Bisikan Kasih & Nina Bobo): Afirmasi rasa aman, disayangi orang tua, dan bisikan selamat tidur yang pudar ke dalam musik.\n\n"
-                "PANDUAN AUDIO:\n"
+                "Anda adalah master penulis cerita pengantar tidur anak (pediatric bedtime sleep storyteller) kelas dunia, "
+                "setara dengan standar emas Moshi Sleep dan Riri Cerita Anak. "
+                "Tuliskan naskah audio pengantar tidur yang SANGAT menenangkan, puitis, dan menghanyutkan jiwa dalam tutur tutur ibu/ayah Indonesia yang luwes.\n"
+                f"TARGET PANJANG NASKAH: {word_target}. JANGAN membuat rangkuman pendek di bawah 400 kata!\n\n"
+                "ARSITEKTUR 5 GERAKAN PENURUNAN TIDUR (SLEEP DESCENT):\n"
+                "1. Gerakan 1 (Grounding Kamar & Napas): Mengajak anak menarik selimut hangat menyelimuti pundak dan dada, "
+                "menyelaraskan napas pelan (tarik napas lembut... hembuskan perlahan), dan menegaskan bahwa waktu bermain hari ini sudah selesai dengan indah.\n"
+                "2. Gerakan 2 (Memasuki Alam Cerita yang Tenang): Melukiskan suasana malam yang hangat dan aman. "
+                "Gunakan detail sensoris fisik (desir ombak, wangi melati, bantal sutra empuk). JANGAN gunakan istilah siang hari seperti 'teduh' untuk malam hari.\n"
+                "3. Gerakan 3 (Sahabat Satwa Mengantuk / Mirror-Neuron Mimicry): Fokus pada SATU sahabat satwa yang sangat mengantuk. "
+                "Gambarkan gestur fisiknya secara detail: merapatkan tubuh ke sarang/perahu, menguap pelan, dan membiarkan kelopak matanya yang berat menutup perlahan.\n"
+                "4. Gerakan 4 (Somatic Body Wind-Down): Relaksasi fisik progresif dari ujung jemari kaki, merambat naik ke betis, punggung, "
+                "pundak turun bersandar bebas, dan kedua kelopak mata terasa sangat berat dan mengantuk.\n"
+                "5. Gerakan 5 (Bisikan Kasih & Nina Bobo): Afirmasi tulus bahwa anak senantiasa aman dan disayangi ayah-ibu selamanya, "
+                "diakhiri bisikan selamat tidur yang lembut memudar ke dalam musik.\n\n"
+                "PANDUAN GAYA BAHASA & FONETIK (STANDAR EMAS):\n"
+                "- Gunakan kata-kata berfonetik lembut: semilir, lembut, hening, lelap, empuk, damai, desir, hangat, pelan.\n"
+                "- JANGAN gunakan terjemahan kaku seperti 'pundakmu yang santai' (gunakan 'sampai menyelimuti pundak dan dadamu').\n"
+                "- JANGAN ada konflik eksternal, musuh, bahaya, atau kejutan apa pun.\n"
                 "- Sisipkan tanda '...' pada jeda napas yang menenangkan.\n"
-                "- Berikan jarak paragraf agar pembacaan memiliki jeda napas santai.\n"
+                "- Pisahkan setiap gerakan dengan jeda baris ganda (\\n\\n) agar pembacaan memiliki jeda napas santai.\n"
                 "- HANYA keluarkan teks narasi yang diucapkan. Jangan sertakan judul, bab, catatan panggung, atau tanda kurung efek suara."
             )
             user_prompt = (
-                f"Tuliskan naskah cerita tidur tidur panjang ({word_target}) untuk anak usia {age} tahun bernama {name}.\n"
+                f"Tuliskan naskah cerita tidur tidur lengkap ({word_target}) untuk anak usia {age} tahun bernama {name}.\n"
                 f"Tema dunia: {theme} (Archetype inspirasi: {archetype}).\n"
                 f"Nilai karakter / pesan moral: {lesson}."
             )
         else:
-            word_target = "380 to 480 words" if age <= 3 else "650 to 850 words"
+            word_target = "450 to 600 words" if age <= 3 else "750 to 950 words"
             system_prompt = (
-                "You are a master pediatric sleep storyteller and bedtime audio specialist. "
-                "Write an immersive, poetic, deeply calming bedtime sleep journey for a child. "
-                f"TARGET WORD COUNT: {word_target}. DO NOT write short summaries under 350 words!\n\n"
-                "5-MOVEMENT PROGRESSIVE SLEEP ARCHITECTURE:\n"
-                "1. Movement 1 (Sensory Grounding): Cozy bedroom atmosphere, pulling up warm blankets, breath synchronization (take a slow deep breath in... and let it drift out).\n"
-                "2. Movement 2 (Gentle Wonder Exploration): Stepping into a quiet sensory world (a starlight celestial boat, whispering ancient forest, warm pastel cloud kingdom). Meeting a gentle sleepy companion.\n"
-                "3. Movement 3 (Gentle Moral Resolution): A low-conflict, soothing resolution of the core character lesson (patience, courage, kindness).\n"
-                "4. Movement 4 (Somatic Sleep Induction): Progressive body relaxation cues (heavy eyelids, shoulders letting go, breathing rhythm slowing down, world tucking in).\n"
-                "5. Movement 5 (Whisper Blessing): Reassurances of love and safety, whispery fading goodnight into dreamland.\n\n"
-                "AUDIO PACING GUIDELINES:\n"
+                "You are a master pediatric sleep storyteller and bedtime audio specialist, "
+                "benchmarking against the gold standard of Moshi Sleep and Calm Kids. "
+                "Write an immersive, deeply calming, hypnotic bedtime sleep journey for a child.\n"
+                f"TARGET WORD COUNT: {word_target}. DO NOT write short summaries under 400 words!\n\n"
+                "5-MOVEMENT PROGRESSIVE SLEEP DESCENT ARCHITECTURE:\n"
+                "1. Movement 1 (Sensory Grounding & Breath): Pulling warm blankets up over shoulders and chest, "
+                "synchronizing slow rhythmic breathing (deep breath in... and long gentle exhale), declaring playtime complete.\n"
+                "2. Movement 2 (Gentle World Entrance): Painting a warm, serene nocturnal realm. "
+                "Focus on tactile textures (whispering sea swells, jasmine aromas, plush velvet cushions). No daytime terms.\n"
+                "3. Movement 3 (The Drowsy Companion / Mirror-Neuron Mimicry): Focus on ONE gentle sleepy creature. "
+                "Depict its drowsiness in slow detail: curling up snugly, taking a sleepy yawn, and letting heavy eyelids close completely.\n"
+                "4. Movement 4 (Somatic Body Wind-Down): Progressive muscular relaxation from toes up through calves, back sinking into bed, "
+                "shoulders dropping completely, eyelids too delightfully heavy to open.\n"
+                "5. Movement 5 (Whisper Blessing & Drift): Reassurances of unconditional parental love and safety, "
+                "fading into quiet dreamland.\n\n"
+                "LINGUISTIC & PHONETIC GUIDELINES:\n"
+                "- Favor soft, liquid consonants and soothing words: drift, cradle, velvet, amber, whisper, shimmer, uncurl, settle, soft, glow.\n"
+                "- ZERO external conflict, villains, alarms, or hurry.\n"
                 "- Insert '...' at natural calming breath pauses.\n"
-                "- Separate movements with paragraph breaks to create music breathing room.\n"
+                "- Separate each movement with double line breaks (\\n\\n) to create narrative breathing room.\n"
                 "- Output ONLY spoken narrative text. Do NOT include titles, stage directions, scene headers, or sound effect brackets."
             )
             user_prompt = (
@@ -141,7 +158,6 @@ class BedtimeStoryCartridge(BaseCartridge):
                 f"Theme / setting: {theme} (Inspirational archetype: {archetype}).\n"
                 f"Core character virtue: {lesson}."
             )
-
         try:
             script = await router.chat([
                 {"role": "system", "content": system_prompt},
@@ -167,12 +183,15 @@ class BedtimeStoryCartridge(BaseCartridge):
         is_id = self._is_indonesian(lang, theme, lesson)
         archetype = self._select_archetype(theme, child_name)
 
-        # Voice selection based on language and age
+        # Voice selection: Prefer ElevenLabs when API key is active, with seamless Edge-TTS fallback
+        from core.config import ELEVENLABS_API_KEY
         if is_id:
-            default_voice = "indonesian_female" if age <= 3 else "indonesian_male"
+            default_voice = "indonesian_female" if age <= 4 else "indonesian_male"
         else:
-            default_voice = "bedtime_female" if age <= 3 else "bedtime_british"
-            
+            if ELEVENLABS_API_KEY:
+                default_voice = "elevenlabs_maternal" if age <= 4 else "elevenlabs_storyteller"
+            else:
+                default_voice = "bedtime_female" if age <= 3 else "bedtime_british"
         voice_profile = payload.get("voice_profile", default_voice)
 
         # 1. Script Generation (V2 Multi-Movement Sleep Arc)
@@ -225,17 +244,31 @@ class BedtimeStoryCartridge(BaseCartridge):
                 "🎵 Mixing harmonic ambient sleep bed & outro relaxation..."
             )
             await on_progress(step_msg)
+        from core.config import MUSIC_DIR
+        music_map = {
+            "perahu_pinisi": MUSIC_DIR / "ocean_stars_ambient.mp3",
+            "danau_toba": MUSIC_DIR / "ocean_stars_ambient.mp3",
+            "hutan_kalpataru": MUSIC_DIR / "nature_night_crickets_rain.mp3",
+            "lentera_kunang_kunang": MUSIC_DIR / "nature_night_crickets_rain.mp3",
+            "sabana_bromo": MUSIC_DIR / "nature_night_crickets_rain.mp3",
+            "negeri_atas_awan": MUSIC_DIR / "lullaby_piano_gymnopedie.mp3",
+            "bintang_kejora": MUSIC_DIR / "lullaby_piano_gymnopedie.mp3",
+            "candi_borobudur": MUSIC_DIR / "lullaby_piano_gymnopedie.mp3",
+            "kereta_rimba": MUSIC_DIR / "lullaby_piano_gymnopedie.mp3"
+        }
+        selected_music = music_map.get(archetype, MUSIC_DIR / "nature_night_crickets_rain.mp3")
+        music_path = str(selected_music) if selected_music.exists() else None
 
         mixer = MediaMixer()
         mixer.mix_voice_and_music(
             voice_path=str(raw_voice_file),
             output_path=str(final_mixed_file),
-            music_volume=0.10,
+            music_path=music_path,
+            music_volume=0.22 if "piano" in str(music_path) else 0.35,
             voice_volume=1.0,
             fade_out_sec=4.0,
-            outro_padding_sec=18.0
+            outro_padding_sec=16.0
         )
-
         # Clean up temporary raw voice
         if raw_voice_file.exists():
             raw_voice_file.unlink()

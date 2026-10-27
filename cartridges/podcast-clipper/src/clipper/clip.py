@@ -1,10 +1,140 @@
 import json
 import os
 import subprocess
+from typing import Optional, Dict, Any, List
 
 import imageio_ffmpeg
+from PIL import Image, ImageDraw, ImageFont
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def resolve_font(size: int, bold: bool = True) -> ImageFont.ImageFont:
+    font_candidates = [
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/HelveticaNeue.ttc",
+        "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for c in font_candidates:
+        if os.path.exists(c):
+            try:
+                return ImageFont.truetype(c, size)
+            except Exception:
+                continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def render_banner_overlay(
+    out_png_path: str,
+    text: str,
+    banner_cfg: Optional[Dict[str, Any]] = None,
+    logo_path: Optional[str] = None,
+    logo_cfg: Optional[Dict[str, Any]] = None,
+    width: int = 1080,
+    height: int = 1920,
+) -> Optional[str]:
+    """
+    Renders a modular top hook banner and/or campaign logo watermark
+    onto a transparent 1080x1920 PNG overlay.
+    Only renders components that are explicitly enabled by the campaign profile.
+    """
+    banner_cfg = banner_cfg or {}
+    logo_cfg = logo_cfg or {}
+    banner_enabled = bool(banner_cfg.get("enabled", False) and text)
+    logo_enabled = bool(logo_cfg.get("enabled", False) and logo_path and os.path.exists(logo_path))
+
+    if not banner_enabled and not logo_enabled:
+        return None
+
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    if banner_enabled:
+        font_size = int(banner_cfg.get("font_size", 44))
+        font = resolve_font(font_size, bold=True)
+        max_line_w = int(banner_cfg.get("max_width", 880))
+        y_top = int(banner_cfg.get("y", 160))
+        text_color = banner_cfg.get("text_color", "#FFEB3B")
+        bg_raw = banner_cfg.get("bg_color", [18, 18, 22, 225])
+        bg_color = tuple(bg_raw) if isinstance(bg_raw, list) else (18, 18, 22, 225)
+        border_raw = banner_cfg.get("border_color", [255, 235, 59, 180])
+        border_color = tuple(border_raw) if isinstance(border_raw, list) else None
+        border_width = int(banner_cfg.get("border_width", 3))
+        corner_radius = int(banner_cfg.get("radius", 26))
+
+        # Multi-line word wrap
+        words = text.strip().split()
+        lines: List[str] = []
+        curr: List[str] = []
+        for w in words:
+            test = " ".join(curr + [w])
+            bbox = draw.textbbox((0, 0), test, font=font)
+            if (bbox[2] - bbox[0]) <= max_line_w:
+                curr.append(w)
+            else:
+                if curr:
+                    lines.append(" ".join(curr))
+                curr = [w]
+        if curr:
+            lines.append(" ".join(curr))
+
+        line_height = int(font_size * 1.25)
+        total_text_h = len(lines) * line_height
+        max_w = 0
+        for line in lines:
+            bb = draw.textbbox((0, 0), line, font=font)
+            max_w = max(max_w, bb[2] - bb[0])
+
+        pad_x = 42
+        pad_y = 20
+        box_w = max_w + (pad_x * 2)
+        box_h = total_text_h + (pad_y * 2)
+        box_x = (width - box_w) // 2
+        box_y = y_top
+
+        # Draw rounded rectangle pill box
+        draw.rounded_rectangle(
+            [box_x, box_y, box_x + box_w, box_y + box_h],
+            radius=corner_radius,
+            fill=bg_color,
+            outline=border_color if border_width > 0 else None,
+            width=border_width,
+        )
+
+        # Draw centered text lines with drop shadow
+        for idx, line in enumerate(lines):
+            line_bb = draw.textbbox((0, 0), line, font=font)
+            lw = line_bb[2] - line_bb[0]
+            lx = (width - lw) // 2
+            ly = box_y + pad_y + (idx * line_height)
+            draw.text((lx + 2, ly + 2), line, font=font, fill=(0, 0, 0, 220))
+            draw.text((lx, ly), line, font=font, fill=text_color)
+
+    if logo_enabled and logo_path:
+        try:
+            with Image.open(logo_path) as logo:
+                logo_rgba = logo.convert("RGBA")
+                max_w = int(logo_cfg.get("max_width", 160))
+                max_h = int(logo_cfg.get("max_height", 80))
+                logo_rgba.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+
+                pos = logo_cfg.get("position", "top-right")
+                if pos == "top-left":
+                    lx, ly = 40, 40
+                else:  # top-right
+                    lx, ly = width - logo_rgba.width - 40, 40
+                canvas.alpha_composite(logo_rgba, (lx, ly))
+        except Exception as e:
+            print(f"  [warn] failed to composite logo {logo_path}: {e}")
+
+    os.makedirs(os.path.dirname(os.path.abspath(out_png_path)), exist_ok=True)
+    canvas.save(out_png_path, "PNG")
+    return out_png_path
 
 
 def probe_dims(path):
@@ -71,7 +201,17 @@ def build_vf(cfg, sw, sh, W, H, source=None, start=None, end=None, settings=None
     return f"crop={cw}:{ch}:{cx}:{cy},scale={W}:{H}", layout
 
 
-def make_clip(source, start, end, out_path, settings=None, subtitles=None):
+def make_clip(
+    source,
+    start,
+    end,
+    out_path,
+    settings=None,
+    subtitles=None,
+    overlay_path=None,
+    ambience_path=None,
+    ambience_volume=0.12,
+):
     cfg = (settings or {}).get("clips", {})
     W, H = cfg.get("width", 1080), cfg.get("height", 1920)
     crf = str(cfg.get("crf", 20))
@@ -79,28 +219,74 @@ def make_clip(source, start, end, out_path, settings=None, subtitles=None):
     loudnorm = cfg.get("loudnorm", False)
     trim_silence = cfg.get("trim_silence", False)
     sw, sh = probe_dims(source)
-    vf, layout = build_vf(cfg, sw, sh, W, H, source, start, end, settings)
-    print(f"  layout={layout} ({sw}x{sh})")
-    if subtitles:
-        safe = subtitles.replace("'", "'\\''")
-        vf += f",subtitles='{safe}'"
-    af = []
-    if trim_silence:
-        af.append("silenceremove=start_periods=1:start_duration=0.3:start_threshold=-50dB")
-    if loudnorm:
-        af.append("loudnorm=I=-16:TP=-1.5:LRA=11")
     dur = end - start
-    cmd = [
-        FFMPEG,
-        "-y",
-        "-ss",
-        str(start),
-        "-i",
-        source,
-        "-t",
-        str(dur),
-        "-vf",
-        vf,
+
+    base_vf, layout = build_vf(cfg, sw, sh, W, H, source, start, end, settings)
+    print(f"  layout={layout} ({sw}x{sh})")
+
+    has_overlay = bool(overlay_path and os.path.exists(overlay_path))
+    has_ambience = bool(ambience_path and os.path.exists(ambience_path))
+
+    cmd = [FFMPEG, "-y", "-ss", str(start), "-i", source, "-t", str(dur)]
+    input_idx = 1
+    overlay_idx = None
+    ambience_idx = None
+
+    if has_overlay:
+        cmd += ["-i", overlay_path]
+        overlay_idx = input_idx
+        input_idx += 1
+
+    if has_ambience:
+        cmd += ["-stream_loop", "-1", "-i", ambience_path]
+        ambience_idx = input_idx
+        input_idx += 1
+
+    sub_filter = ""
+    if subtitles:
+        safe_subs = subtitles.replace("'", "'\\''")
+        sub_filter = f",subtitles='{safe_subs}'"
+
+    filter_chains = []
+    # Video branch
+    if has_overlay:
+        v_chain = f"[0:v]{base_vf}[base];[base][{overlay_idx}:v]overlay=0:0{sub_filter}[v]"
+    else:
+        v_chain = f"[0:v]{base_vf}{sub_filter}[v]"
+    filter_chains.append(v_chain)
+
+    # Audio branch
+    voice_af = []
+    if trim_silence:
+        voice_af.append("silenceremove=start_periods=1:start_duration=0.3:start_threshold=-50dB")
+
+    if has_ambience:
+        m_vol = max(0.01, min(float(ambience_volume), 0.5))
+        a_chain = (
+            f"[{ambience_idx}:a]volume={m_vol}[bgm];"
+            f"[bgm][0:a]sidechaincompress=threshold=0.08:ratio=4:attack=50:release=300[duck_bgm];"
+            f"[0:a][duck_bgm]amix=inputs=2:duration=first:dropout_transition=2[a_mix]"
+        )
+        if loudnorm:
+            a_chain += ";[a_mix]loudnorm=I=-16:TP=-1.5:LRA=11[a]"
+        else:
+            a_chain += ";[a_mix]anull[a]"
+        filter_chains.append(a_chain)
+    else:
+        if loudnorm:
+            voice_af.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+        if voice_af:
+            filter_chains.append(f"[0:a]{','.join(voice_af)}[a]")
+        else:
+            filter_chains.append("[0:a]anull[a]")
+
+    cmd += [
+        "-filter_complex",
+        ";".join(filter_chains),
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
@@ -111,16 +297,23 @@ def make_clip(source, start, end, out_path, settings=None, subtitles=None):
         "aac",
         "-b:a",
         "128k",
+        "-movflags",
+        "+faststart",
+        out_path,
     ]
-    if af:
-        cmd += ["-af", ",".join(af)]
-    cmd += ["-movflags", "+faststart", out_path]
     subprocess.run(cmd, check=True, capture_output=True)
     return out_path
 
 
 def cut_clips(
-    source, ranked, out_dir, settings=None, style=None, max_clips=None, offset=0.0
+    source,
+    ranked,
+    out_dir,
+    settings=None,
+    style=None,
+    max_clips=None,
+    offset=0.0,
+    campaign_profile=None,
 ):
     from .caption import write_ass, write_srt, write_vtt
 
@@ -129,8 +322,43 @@ def cut_clips(
     style = style or cfg.get("default_style", "hormozi")
     sidecars = cfg.get("sidecars", ["ass", "srt", "vtt"])
     cap_ov = (settings or {}).get("_caption_overrides") or {}
+    camp_prof = campaign_profile or (settings or {}).get("_campaign_profile") or {}
+    banner_cfg = camp_prof.get("banner", {})
+    logo_cfg = camp_prof.get("logo", {})
+    ambience_cfg = camp_prof.get("ambience", {})
+
     os.makedirs(out_dir, exist_ok=True)
     made = []
+    W, H = cfg.get("width", 1080), cfg.get("height", 1920)
+
+    # Resolve ambience music track if requested
+    ambience_path = None
+    ambience_vol = float(ambience_cfg.get("volume", 0.12))
+    if ambience_cfg.get("enabled", False):
+        raw_track = ambience_cfg.get("track")
+        if raw_track:
+            candidate_paths = [
+                raw_track,
+                os.path.join(ROOT_DIR, raw_track),
+                os.path.join(ROOT_DIR, "assets", "music", raw_track),
+                os.path.join(ROOT_DIR, "..", "..", "assets", "music", raw_track),
+                os.path.join(ROOT_DIR, "..", "..", "assets", "music", "ambient_sleep_bed.mp3"),
+            ]
+            for cp in candidate_paths:
+                if os.path.exists(cp):
+                    ambience_path = cp
+                    break
+
+    # Resolve logo path if requested
+    logo_path = None
+    if logo_cfg.get("enabled", False):
+        raw_logo = logo_cfg.get("path")
+        if raw_logo:
+            for lp in [raw_logo, os.path.join(ROOT_DIR, raw_logo), os.path.join(ROOT_DIR, "..", "..", raw_logo)]:
+                if os.path.exists(lp):
+                    logo_path = lp
+                    break
+
     for i, c in enumerate(ranked[:n]):
         shifted = {**c, "start": c["start"] + offset, "end": c["end"] + offset}
         shifted["words"] = [
@@ -146,24 +374,63 @@ def cut_clips(
         if "vtt" in sidecars:
             extra["vtt"] = os.path.join(out_dir, f"clip{i}.vtt")
             write_vtt(shifted, extra["vtt"], style, base_offset=shifted["start"], overrides=cap_ov)
+
+        # Generate overlay only if winner/campaign has banner or logo enabled
+        overlay_path = None
+        banner_text = c.get("banner_hook") or c.get("title", "")
+        if banner_cfg.get("enabled", False) or (logo_cfg.get("enabled", False) and logo_path):
+            ov_out = os.path.join(out_dir, f"clip{i}_overlay.png")
+            overlay_path = render_banner_overlay(
+                out_png_path=ov_out,
+                text=banner_text,
+                banner_cfg=banner_cfg,
+                logo_path=logo_path,
+                logo_cfg=logo_cfg,
+                width=W,
+                height=H,
+            )
+
         mp4 = os.path.join(out_dir, f"clip{i}.mp4")
         make_clip(
-            source, shifted["start"], shifted["end"], mp4, settings, subtitles=ass
+            source=source,
+            start=shifted["start"],
+            end=shifted["end"],
+            out_path=mp4,
+            settings=settings,
+            subtitles=ass,
+            overlay_path=overlay_path,
+            ambience_path=ambience_path,
+            ambience_volume=ambience_vol,
         )
+
         dur = max(shifted["end"] - shifted["start"], 0.1)
         thumb_off = min(max(float(c.get("thumbnail_s", dur / 2)), 0), dur - 0.1)
+
+        tags = c.get("hashtags", [])
+        if not tags and c.get("description"):
+            tags = [t.strip() for t in c.get("description", "").split() if t.startswith("#")]
+
         meta = {
             "title": c.get("title", ""),
+            "banner_hook": c.get("banner_hook", ""),
             "description": c.get("description", ""),
+            "hashtags": tags,
             "hook": c.get("hook", ""),
             "score": c.get("score", 0),
             "start": shifted["start"],
             "end": shifted["end"],
             "thumbnail_s": round(thumb_off, 2),
+            "campaign": camp_prof.get("name") or camp_prof.get("campaign"),
+            "submission_ready": {
+                "platform_title": f"{c.get('title', '')} {' '.join(tags)}".strip(),
+                "full_description": f"{c.get('description', '')}\n\n{' '.join(tags)}".strip(),
+                "timestamp_proof": f"{shifted['start']:.0f}s - {shifted['end']:.0f}s",
+            },
         }
         meta_path = os.path.join(out_dir, f"clip{i}.meta.json")
-        with open(meta_path, "w") as f:
-            json.dump(meta, f, indent=1, ensure_ascii=False)
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
         thumb_path = os.path.join(out_dir, f"clip{i}.thumb.jpg")
         try:
             subprocess.run(
@@ -187,6 +454,7 @@ def cut_clips(
             )
         except subprocess.CalledProcessError:
             thumb_path = None
+
         made.append(
             {
                 "clip": mp4,
@@ -197,6 +465,7 @@ def cut_clips(
                 "score": c.get("score", 0),
                 "start": shifted["start"],
                 "end": shifted["end"],
+                "submission_ready": meta["submission_ready"],
             }
         )
     return made

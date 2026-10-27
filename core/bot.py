@@ -1,3 +1,4 @@
+import html
 import asyncio
 import importlib
 import importlib.util
@@ -216,6 +217,60 @@ class OmniForgeBot:
         clean_lang = "id" if lang.lower().strip() in ("id", "id-id", "indonesia", "indo") else "en"
         self.user_languages[str(user_id)] = clean_lang
         self._save_user_preferences()
+    def get_user_voice(self, user_id: str) -> Optional[str]:
+        """Returns the user's preferred story voice profile, or None for auto."""
+        return self.user_profiles.get(str(user_id), {}).get("story_voice")
+
+    def set_user_voice(self, user_id: str, voice: Optional[str]) -> None:
+        """Persists the user's preferred story voice profile (None = auto)."""
+        uid = str(user_id)
+        if uid not in self.user_profiles:
+            self.user_profiles[uid] = {"language": self.user_languages.get(uid, "id"), "bedtime_story": {"children": []}}
+        if voice:
+            self.user_profiles[uid]["story_voice"] = voice
+        else:
+            self.user_profiles[uid].pop("story_voice", None)
+        self._save_user_profiles()
+
+    def _get_voice_keyboard(self, lang: str = "id", current: Optional[str] = None) -> InlineKeyboardMarkup:
+        auto = "✨ Otomatis (Aktif)" if (current is None and lang == "id") else ("✨ Auto (Active)" if current is None else ("✨ Otomatis" if lang == "id" else "✨ Auto"))
+        g = "🌸 Ibu Gadis (Aktif)" if current == "indonesian_female" else "🌸 Ibu Gadis"
+        a = "🦉 Ayah Ardi (Aktif)" if current == "indonesian_male" else "🦉 Ayah Ardi"
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton(auto, callback_data="set_voice:auto")],
+            [
+                InlineKeyboardButton(g, callback_data="set_voice:indonesian_female"),
+                InlineKeyboardButton(a, callback_data="set_voice:indonesian_male")
+            ]
+        ])
+
+    async def voice_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._is_user_authorized(update):
+            return
+        user = update.effective_user
+        user_id = str(user.id) if user else "anon"
+        lang = self.resolve_user_language(update)
+        args = [a.lower() for a in (context.args or [])]
+        if args:
+            pick = args[0]
+            if pick in ("auto", "otomatis"):
+                self.set_user_voice(user_id, None)
+            elif pick in ("gadis", "ibu", "female", "indonesian_female"):
+                self.set_user_voice(user_id, "indonesian_female")
+            elif pick in ("ardi", "ayah", "male", "indonesian_male"):
+                self.set_user_voice(user_id, "indonesian_male")
+            else:
+                msg = "Pilihan: `/voice auto` / `/voice gadis` / `/voice ardi`." if lang == "id" else "Options: `/voice auto` / `/voice gadis` / `/voice ardi`."
+                await update.message.reply_text(msg, parse_mode="Markdown")
+                return
+            current = self.get_user_voice(user_id)
+            label = {"indonesian_female": "🌸 Ibu Gadis", "indonesian_male": "🦉 Ayah Ardi"}.get(current, "✨ Otomatis" if lang == "id" else "✨ Auto")
+            msg = f"🎙️ Suara cerita: *{label}*" if lang == "id" else f"🎙️ Story voice: *{label}*"
+            await update.message.reply_text(msg, parse_mode="Markdown")
+            return
+        current = self.get_user_voice(user_id)
+        prompt = "🎙️ *Pilih suara pencerita:*\nGadis = lembut maternal • Ardi = dalam menenangkan" if lang == "id" else "🎙️ *Pick narrator voice:*\nGadis = soft maternal • Ardi = deep calming"
+        await update.message.reply_text(prompt, reply_markup=self._get_voice_keyboard(lang, current), parse_mode="Markdown")
 
     def load_cartridges(self) -> None:
         """
@@ -265,6 +320,178 @@ class OmniForgeBot:
                 return True
         return False
 
+    def _get_main_menu_keyboard(self, lang: str) -> InlineKeyboardMarkup:
+        toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
+        target_lang = "en" if lang == "id" else "id"
+        story_label = "🌙 Cerita Tidur Anak" if lang == "id" else "🌙 Bedtime Story"
+        morning_label = "☀️ Afirmasi Pagi" if lang == "id" else "☀️ Morning Boost"
+        clip_label = "🎬 Video Clipper"
+        culture_label = "🏛️ Mesin Waktu" if lang == "id" else "🏛️ Time Machine"
+        prof_label = "👤 Profil Anak" if lang == "id" else "👤 Child Profile"
+        guide_label = "📖 Panduan Perintah" if lang == "id" else "📖 Command Guides"
+
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(clip_label, callback_data="wiz_menu_clip"),
+                InlineKeyboardButton(culture_label, callback_data="wiz_menu_culture"),
+            ],
+            [
+                InlineKeyboardButton(story_label, callback_data="wiz_menu_story"),
+                InlineKeyboardButton(morning_label, callback_data="wiz_menu_morning"),
+            ],
+            [
+                InlineKeyboardButton(guide_label, callback_data="wiz_menu_guides"),
+                InlineKeyboardButton("🌐 Web Portal", callback_data="wiz_menu_portal"),
+            ],
+            [
+                InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
+                InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}"),
+            ],
+        ])
+
+    def _get_clip_guide_keyboard(self, lang: str) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "🏆 Preset Habits (Mel Robbins)" if lang == "id" else "🏆 Habits Preset (Mel Robbins)",
+                    callback_data="clip_preset:habits_pill_banner"
+                ),
+                InlineKeyboardButton(
+                    "🎙️ Raw Minimal" if lang == "id" else "🎙️ Raw Minimal",
+                    callback_data="clip_preset:raw_podcast_minimal"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "⚡ General Winner" if lang == "id" else "⚡ General Winner",
+                    callback_data="clip_preset:general_winner"
+                ),
+                InlineKeyboardButton(
+                    "✍️ Panduan Custom Brief" if lang == "id" else "✍️ Custom Brief Guide",
+                    callback_data="clip_guide:custom_brief"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "📋 Contoh Command Cepat" if lang == "id" else "📋 Quick Commands",
+                    callback_data="clip_guide:quick_commands"
+                ),
+                InlineKeyboardButton(
+                    "🔙 Menu Utama" if lang == "id" else "🔙 Main Menu",
+                    callback_data="wiz_menu_main"
+                ),
+            ]
+        ])
+
+    def _get_clip_guide_text(self, lang: str) -> str:
+        if lang == "id":
+            return (
+                "🎬 *OmniForge Campaign Clipper (Content Rewards / Whop)*\n\n"
+                "Ekstrak klip vertikal 9:16 otomatis yang disesuaikan dengan format pemenang kampanye.\n\n"
+                "📌 *Pilihan Preset Pemenang:*\n"
+                "• 🏆 *Habits & Psychology*: Header dark pill + text kuning `#FFEB3B`, background musik piano lembut yang mengecil otomatis saat bicara (ducking).\n"
+                "• 🎙️ *Raw Minimal*: Layar penuh narasumber, tanpa banner, tanpa musik, vokal asli 100% jernih.\n"
+                "• ⚡ *General Winner*: Header hook rasa ingin tahu (curiosity gap) kontras tinggi.\n\n"
+                "👇 *Pilih preset di bawah untuk memulai, atau ketik langsung:* \n"
+                "`/clip <YouTube_URL> [preset]`"
+            )
+        else:
+            return (
+                "🎬 *OmniForge Campaign Clipper (Content Rewards / Whop)*\n\n"
+                "Extract autonomous 9:16 vertical clips tailored for high-CTR campaigns.\n\n"
+                "📌 *Winning Preset Options:*\n"
+                "• 🏆 *Habits & Psychology*: Dark pill header + yellow `#FFEB3B` text, sidechain ducked ambient piano bed.\n"
+                "• 🎙️ *Raw Minimal*: Full-frame speaker tracking, zero banner, zero music, 100% clear podcast vocal.\n"
+                "• ⚡ *General Winner*: High-contrast universal curiosity hook header.\n\n"
+                "👇 *Select a preset below to start, or run directly:* \n"
+                "`/clip <YouTube_URL> [preset]`"
+            )
+
+    def _get_guides_catalog_keyboard(self, lang: str) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎬 Panduan Clipper (Shorts)" if lang == "id" else "🎬 Clipper Guide", callback_data="wiz_menu_clip"),
+                InlineKeyboardButton("🏛️ Panduan Mesin Waktu" if lang == "id" else "🏛️ Time Machine Guide", callback_data="guide_detail:culture"),
+            ],
+            [
+                InlineKeyboardButton("🌙 Panduan Cerita Tidur" if lang == "id" else "🌙 Bedtime Story Guide", callback_data="guide_detail:story"),
+                InlineKeyboardButton("☀️ Panduan Afirmasi" if lang == "id" else "☀️ Affirmation Guide", callback_data="guide_detail:morning"),
+            ],
+            [
+                InlineKeyboardButton("💡 Panduan AutoForge Idea" if lang == "id" else "💡 Idea Guide", callback_data="guide_detail:idea"),
+                InlineKeyboardButton("🔙 Menu Utama" if lang == "id" else "🔙 Main Menu", callback_data="wiz_menu_main"),
+            ]
+        ])
+
+    def _get_guides_catalog_text(self, lang: str) -> str:
+        if lang == "id":
+            return (
+                "📖 *Pusat Panduan & Direktori Perintah OmniForge*\n\n"
+                "Pilih modul di bawah untuk melihat format penggunaan, contoh perintah, dan tips praktis:"
+            )
+        else:
+            return (
+                "📖 *OmniForge Command & Feature Directory*\n\n"
+                "Select a cartridge below to explore usage syntax, live examples, and best practices:"
+            )
+
+    def _get_guide_detail_text(self, topic: str, lang: str) -> str:
+        if topic == "story":
+            return (
+                "🌙 *Panduan Studio Cerita Pengantar Tidur*\n\n"
+                "Menghasilkan dongeng tidur personal dengan audio binaural dan suara narator hangat.\n\n"
+                "• `/story` — Buka wizard interaktif pemilihan tema\n"
+                "• `/story <nama> <usia> <tema>` — Contoh: `/story Leo 8 luar angkasa keberanian`\n"
+                "• `/profile` — Atur data dan kepribadian anak\n"
+                "• `/suara` — Ganti suara narator (Gadis lembut vs Ardi dalam menenangkan)"
+                if lang == "id" else
+                "🌙 *Bedtime Story Studio Guide*\n\n"
+                "Generates personalized bedtime audio journeys for children.\n\n"
+                "• `/story` — Open interactive theme picker\n"
+                "• `/story <name> <age> <theme>` — Example: `/story Leo 8 space courage`\n"
+                "• `/profile` — Manage child profile and preferences\n"
+                "• `/voice` — Switch narrator voice (Gadis soft vs Ardi deep calming)"
+            )
+        elif topic == "culture":
+            return (
+                "🏛️ *Panduan Mesin Waktu Nusantara*\n\n"
+                "Menghasilkan video reel vertikal 9:16 sinematik tentang peradaban kuno Nusantara.\n\n"
+                "• `/culture` — Buka pemilih peradaban (Majapahit, Sriwijaya, Tarumanegara, dll.)\n"
+                "• `/culture <topik>` — Contoh: `/culture majapahit`\n"
+                "• Output: Video 1080x1920 dengan visual AI, ornamen emas, narasi sejarah, dan subtitle sinematik."
+                if lang == "id" else
+                "🏛️ *Nusantara Time Machine Guide*\n\n"
+                "Generates cinematic 9:16 cultural documentary video reels.\n\n"
+                "• `/culture` — Open ancient civilization picker (Majapahit, Sriwijaya, etc.)\n"
+                "• `/culture <topic>` — Example: `/culture majapahit`\n"
+                "• Output: 1080x1920 vertical video with historical narration and cinematic subtitles."
+            )
+        elif topic == "morning":
+            return (
+                "☀️ *Panduan Afirmasi Pagi*\n\n"
+                "Menghasilkan audio afirmasi positif harian dengan musik pengiring yang membangkitkan semangat.\n\n"
+                "• `/morning` — Buka pemilih fokus (Fokus Belajar, Percaya Diri, Ketenangan)\n"
+                "• `/morning <nama> <fokus>` — Contoh: `/morning Leo percaya diri`"
+                if lang == "id" else
+                "☀️ *Morning Affirmation Guide*\n\n"
+                "Generates uplifting morning audio affirmations with inspiring ambient beds.\n\n"
+                "• `/morning` — Open focus selector (Confidence, Focus, Calm)\n"
+                "• `/morning <name> <theme>` — Example: `/morning Leo confidence`"
+            )
+        elif topic == "idea":
+            return (
+                "💡 *Panduan AutoForge Idea*\n\n"
+                "Arsitektur autonomous yang menulis kode, membuat cartridge baru, menguji unit test, dan meluncurkannya ke bot secara langsung tanpa restart!\n\n"
+                "• `/idea <deskripsi fitur>`\n"
+                "• Contoh: `/idea buatkan cartridge kalkulator zakat otomatis`"
+                if lang == "id" else
+                "💡 *AutoForge Idea Guide*\n\n"
+                "Autonomous builder that writes code, creates new cartridges, runs unit tests, and hot-deploys them!\n\n"
+                "• `/idea <feature description>`\n"
+                "• Example: `/idea create a daily financial tip cartridge`"
+            )
+        return ""
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._is_user_authorized(update):
             await update.message.reply_text("⛔ Access restricted. Contact admin to authorize your Telegram account.")
@@ -275,43 +502,21 @@ class OmniForgeBot:
             f"{t('start_title', lang)}\n\n"
             f"{t('start_subtitle', lang)}\n\n"
             f"{t('start_commands_header', lang)}\n"
+            f"{t('start_cmd_clip', lang)}\n"
+            f"{t('start_cmd_culture', lang)}\n"
             f"{t('start_cmd_story', lang)}\n"
             f"{t('start_cmd_morning', lang)}\n"
-            f"{t('start_cmd_clip', lang)}\n"
             f"{t('start_cmd_idea', lang)}\n\n"
             f"{t('start_cmd_system', lang)}"
         )
-        toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
-        target_lang = "en" if lang == "id" else "id"
-        story_label = "🌙 Cerita Tidur Anak" if lang == "id" else "🌙 Bedtime Story"
-        morning_label = "☀️ Afirmasi Pagi" if lang == "id" else "☀️ Morning Boost"
-        prof_label = "👤 Profil Anak" if lang == "id" else "👤 Child Profile"
-
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(story_label, callback_data="wiz_menu_story"),
-                InlineKeyboardButton(morning_label, callback_data="wiz_menu_morning")
-            ],
-            [
-                InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
-                InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")
-            ],
-            [
-                InlineKeyboardButton("🌐 Mission Control Portal", callback_data="wiz_menu_portal")
-            ]
-        ])
+        kb = self._get_main_menu_keyboard(lang)
         await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         lang = self.resolve_user_language(update)
-        msg = (
-            f"{t('help_title', lang)}\n\n"
-            f"{t('help_story_section', lang)}\n\n"
-            f"{t('help_morning_section', lang)}\n\n"
-            f"{t('help_clip_section', lang)}\n\n"
-            f"{t('help_idea_section', lang)}"
-        )
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        msg = self._get_guides_catalog_text(lang)
+        kb = self._get_guides_catalog_keyboard(lang)
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
 
     async def lang_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._is_user_authorized(update):
@@ -526,7 +731,66 @@ class OmniForgeBot:
             await update.message.reply_text(prompt, reply_markup=kb, parse_mode="Markdown")
             return
 
-        # 2. Returning Parent Curiosity Mode / Direct Typed Input
+        # 2. Clipper: Awaiting YouTube URL from preset wizard
+        if curr_state == "clip_awaiting_url":
+            camp = state_info.get("campaign", "general_winner")
+            self.user_states.pop(uid, None)
+            words = text.split()
+            url = words[0]
+            if not (url.startswith("http://") or url.startswith("https://")):
+                err_msg = (
+                    "⚠️ *Link tidak valid.* Harap kirimkan tautan YouTube yang benar (diawali `https://`)."
+                    if user_lang == "id" else
+                    "⚠️ *Invalid URL.* Please send a valid YouTube link (starting with `https://`)."
+                )
+                await update.message.reply_text(err_msg, parse_mode="Markdown")
+                return
+
+            prep_msg = (
+                f"🎬 *Memulai Clipping dengan Preset:* `{camp}`\n⏳ Mengunduh dan menganalisis video..."
+                if user_lang == "id" else
+                f"🎬 *Starting Clipping with Preset:* `{camp}`\n⏳ Downloading and analyzing video..."
+            )
+            status_msg = await update.message.reply_text(prep_msg, parse_mode="Markdown")
+            payload = {
+                "url": url,
+                "campaign": camp,
+                "lang": user_lang
+            }
+            if len(words) >= 2 and words[1].isdigit():
+                payload["max_clips"] = int(words[1])
+
+            await self._execute_and_send_cartridge(
+                target_message=update.message,
+                cmd="clip",
+                payload=payload,
+                status_msg=status_msg
+            )
+            return
+
+        # 3. Direct YouTube Link Detection
+        if text.startswith("http://") or text.startswith("https://"):
+            if "youtube.com" in text or "youtu.be" in text:
+                prompt = (
+                    "🎬 *Tautan YouTube Terdeteksi!*\n\n"
+                    "Pilih gaya preset pemenang kampanye untuk memproses video ini:"
+                    if user_lang == "id" else
+                    "🎬 *YouTube Link Detected!*\n\n"
+                    "Select a winning campaign preset to process this video:"
+                )
+                self.user_states[uid] = {
+                    "state": "clip_url_received",
+                    "url": text.split()[0],
+                    "lang": user_lang
+                }
+                await update.message.reply_text(
+                    prompt,
+                    reply_markup=self._get_clip_guide_keyboard(user_lang),
+                    parse_mode="Markdown"
+                )
+                return
+
+        # 4. Returning Parent Curiosity Mode / Direct Typed Input
         active_child = self.get_active_child(uid)
         if curr_state == "bedtime_story_curiosity" or (active_child and not text.startswith("/")):
             child_name = active_child["name"]
@@ -794,6 +1058,26 @@ class OmniForgeBot:
                 InlineKeyboardButton("🇬🇧 Daily Boost (English)", callback_data="wiz_morn:en:Friend:courage and strength")
             ]
         ])
+    def _get_culture_keyboard(self, lang: str = "id") -> InlineKeyboardMarkup:
+        if lang == "id":
+            return InlineKeyboardMarkup([
+                [InlineKeyboardButton("🏛️ Majapahit 1350 M", callback_data="cult:majapahit_trowulan")],
+                [InlineKeyboardButton("⚓ Sriwijaya Maritim", callback_data="cult:sriwijaya_maritim")],
+                [InlineKeyboardButton("🌿 Pakuan Pajajaran", callback_data="cult:padjajaran_siliwangi")],
+                [InlineKeyboardButton("🛕 Borobudur Syailendra", callback_data="cult:borobudur_syailendra")],
+                [InlineKeyboardButton("⚔️ Singasari Ken Arok", callback_data="cult:singasari_kenarok")],
+                [InlineKeyboardButton("⬅️ Kembali ke Menu Utama", callback_data="wiz_menu_main")]
+            ])
+        else:
+            return InlineKeyboardMarkup([
+                [InlineKeyboardButton("🏛️ Majapahit 1350 CE", callback_data="cult:majapahit_trowulan")],
+                [InlineKeyboardButton("⚓ Maritime Sriwijaya", callback_data="cult:sriwijaya_maritim")],
+                [InlineKeyboardButton("🌿 Pakuan Pajajaran", callback_data="cult:padjajaran_siliwangi")],
+                [InlineKeyboardButton("🛕 Borobudur Sailendra", callback_data="cult:borobudur_syailendra")],
+                [InlineKeyboardButton("⚔️ Singasari Ken Arok", callback_data="cult:singasari_kenarok")],
+                [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="wiz_menu_main")]
+            ])
+
 
     async def _execute_and_send_cartridge(
         self,
@@ -841,12 +1125,16 @@ class OmniForgeBot:
             output_files = result.get("output_files", [output_file] if output_file else [])
             title = result.get("title", f"Generated {cmd.title()}")
 
+            safe_title = html.escape(str(title))
             upload_text = (
-                f"✨ *Rendering Selesai:* {title}\nMengirim media ke chat Anda..."
+                f"✨ <b>Rendering Selesai:</b> {safe_title}\nMengirim media ke chat Anda..."
                 if lang == "id" else
-                f"✨ *Rendering Complete:* {title}\nUploading media to your chat..."
+                f"✨ <b>Rendering Complete:</b> {safe_title}\nUploading media to your chat..."
             )
-            await status_msg.edit_text(upload_text, parse_mode="Markdown")
+            try:
+                await status_msg.edit_text(upload_text, parse_mode="HTML")
+            except Exception:
+                await status_msg.edit_text(upload_text)
 
             for file_path in output_files:
                 p = Path(file_path)
@@ -855,36 +1143,111 @@ class OmniForgeBot:
 
                 suffix = p.suffix.lower()
                 if suffix in (".mp4", ".mov", ".mkv"):
-                    await target_message.reply_video(
-                        video=open(p, "rb"),
-                        caption=f"🎬 *{title}* ({p.name})",
-                        parse_mode="Markdown"
-                    )
+                    # Check for companion .meta.json with submission-ready details
+                    meta_p = p.with_suffix(".meta.json")
+                    video_caption = f"🎬 <b>{safe_title}</b>"
+                    if meta_p.exists():
+                        try:
+                            with open(meta_p, "r", encoding="utf-8") as mf:
+                                mdata = json.load(mf)
+                                sub_r = mdata.get("submission_ready", {})
+                                p_title = sub_r.get("platform_title") or mdata.get("title", "")
+                                p_desc = sub_r.get("full_description") or mdata.get("description", "")
+                                p_proof = sub_r.get("timestamp_proof", "")
+                                score = mdata.get("score", 0)
+                                b_hook = mdata.get("banner_hook", "")
+
+                                cap_header = f"🎬 <b>{html.escape(p_title)}</b>\n"
+                                if b_hook:
+                                    cap_header += f"🎯 <b>Hook:</b> {html.escape(b_hook)}\n"
+                                cap_header += f"⏱️ <i>Proof: {p_proof} | Score: {score}/100</i>\n\n📋 <b>Tap to Copy Description:</b>\n<code>"
+                                cap_footer = "</code>"
+
+                                avail_desc = 1000 - len(cap_header) - len(cap_footer)
+                                safe_desc = html.escape(p_desc[:avail_desc] if avail_desc > 0 else "")
+                                video_caption = f"{cap_header}{safe_desc}{cap_footer}"
+                        except Exception as me:
+                            logger.warning(f"Failed to read clip metadata for caption: {me}")
+
+                    with open(p, "rb") as video_file:
+                        try:
+                            await target_message.reply_video(
+                                video=video_file,
+                                caption=video_caption,
+                                parse_mode="HTML",
+                                width=1080,
+                                height=1920,
+                                supports_streaming=True,
+                                read_timeout=180,
+                                write_timeout=180,
+                            )
+                        except Exception as send_err:
+                            logger.warning(f"Failed to send video with HTML parse mode ({send_err}); retrying as plain text...")
+                            video_file.seek(0)
+                            await target_message.reply_video(
+                                video=video_file,
+                                caption=f"🎬 {title}",
+                                width=1080,
+                                height=1920,
+                                supports_streaming=True,
+                                read_timeout=180,
+                                write_timeout=180,
+                            )
                 elif suffix in (".mp3", ".wav", ".m4a"):
                     script_snippet = result.get('script', '')[:200]
-                    caption = f"🎧 *{title}*"
+                    audio_caption = f"🎧 <b>{safe_title}</b>"
                     if script_snippet:
-                        caption += f"\n\n_{script_snippet}..._"
-                    await target_message.reply_audio(
-                        audio=open(p, "rb"),
-                        title=title,
-                        performer="OmniForge Audio",
-                        caption=caption,
-                        parse_mode="Markdown"
-                    )
+                        audio_caption += f"\n\n<i>{html.escape(script_snippet)}...</i>"
+                    with open(p, "rb") as audio_file:
+                        try:
+                            await target_message.reply_audio(
+                                audio=audio_file,
+                                title=title,
+                                performer="OmniForge Audio",
+                                caption=audio_caption,
+                                parse_mode="HTML",
+                                read_timeout=120,
+                                write_timeout=120,
+                            )
+                        except Exception as send_err:
+                            logger.warning(f"Failed to send audio with HTML parse mode ({send_err}); retrying as plain text...")
+                            audio_file.seek(0)
+                            await target_message.reply_audio(
+                                audio=audio_file,
+                                title=title,
+                                performer="OmniForge Audio",
+                                caption=f"🎧 {title}",
+                                read_timeout=120,
+                                write_timeout=120,
+                            )
                 else:
-                    await target_message.reply_document(
-                        document=open(p, "rb"),
-                        caption=f"📄 *{title}* ({p.name})"
-                    )
-
+                    with open(p, "rb") as doc_file:
+                        try:
+                            await target_message.reply_document(
+                                document=doc_file,
+                                caption=f"📄 <b>{safe_title}</b>",
+                                parse_mode="HTML",
+                                read_timeout=120,
+                                write_timeout=120,
+                            )
+                        except Exception:
+                            doc_file.seek(0)
+                            await target_message.reply_document(
+                                document=doc_file,
+                                caption=f"📄 {title}",
+                                read_timeout=120,
+                                write_timeout=120,
+                            )
             try:
                 await status_msg.delete()
             except Exception:
                 pass
         except Exception as e:
             logger.error(f"Error executing cartridge `/{cmd}`: {e}", exc_info=True)
-            await status_msg.edit_text(f"❌ Gagal memproses `/{cmd}`: {str(e)}")
+            try:
+                await status_msg.edit_text(f"❌ Gagal memproses `/{cmd}`: {str(e)}")
+            except Exception:
+                pass
 
     async def handle_cartridge_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -909,6 +1272,10 @@ class OmniForgeBot:
             explicit_lang = True
         elif cmd == "klip":
             cmd = "clip"
+        elif cmd == "budaya":
+            cmd = "culture"
+            payload["lang"] = "id"
+            explicit_lang = True
         elif cmd == "ide":
             return await self.idea_command(update, context)
 
@@ -1025,27 +1392,81 @@ class OmniForgeBot:
                     )
                     return
 
-        elif cmd == "clip":
+        elif cmd in ("clip", "klip"):
             if not args:
+                user_lang = self.resolve_user_language(update)
                 await update.message.reply_text(
-                    "🎬 *How to use /clip:*\n"
-                    "`/clip <YouTube_URL> [style] [max_clips]`\n\n"
-                    "Examples:\n"
-                    "• `/clip https://youtu.be/LlhTEttKcwQ`\n"
-                    "• `/clip https://youtu.be/... hormozi 3`",
+                    self._get_clip_guide_text(user_lang),
+                    reply_markup=self._get_clip_guide_keyboard(user_lang),
                     parse_mode="Markdown"
                 )
                 return
-            payload["url"] = args[0]
-            if len(args) >= 2:
-                payload["style"] = args[1]
-            if len(args) >= 3 and args[2].isdigit():
-                payload["max_clips"] = int(args[2])
+
+            raw_str = " ".join(args)
+            if "|" in raw_str:
+                parts = raw_str.split("|", 1)
+                first_parts = parts[0].strip().split()
+                payload["url"] = first_parts[0]
+                brief_part = parts[1].strip()
+                if brief_part.lower().startswith("brief:"):
+                    brief_part = brief_part[6:].strip()
+                payload["campaign_brief"] = brief_part
+                if len(first_parts) >= 2:
+                    arg_camp = first_parts[1].lower()
+                    if arg_camp in ("habits", "habits_pill_banner"):
+                        payload["campaign"] = "habits_pill_banner"
+                    elif arg_camp in ("minimal", "raw", "raw_podcast_minimal"):
+                        payload["campaign"] = "raw_podcast_minimal"
+                    elif arg_camp in ("general", "winner", "general_winner"):
+                        payload["campaign"] = "general_winner"
+                    else:
+                        payload["campaign"] = first_parts[1]
+                if len(first_parts) >= 3 and first_parts[2].isdigit():
+                    payload["max_clips"] = int(first_parts[2])
+            else:
+                payload["url"] = args[0]
+                if len(args) >= 2:
+                    arg2 = args[1].lower()
+                    if arg2 in ("habits", "habits_pill_banner"):
+                        payload["campaign"] = "habits_pill_banner"
+                    elif arg2 in ("minimal", "raw", "raw_podcast_minimal"):
+                        payload["campaign"] = "raw_podcast_minimal"
+                    elif arg2 in ("general", "winner", "general_winner"):
+                        payload["campaign"] = "general_winner"
+                    else:
+                        payload["style"] = args[1]
+                if len(args) >= 3 and args[2].isdigit():
+                    payload["max_clips"] = int(args[2])
+        elif cmd == "culture":
+            user_lang = self.resolve_user_language(update)
+            if not args:
+                prompt_text = (
+                    "🏛️ *Mesin Waktu Nusantara — Dokumenter Budaya*\n\n"
+                    "Pilih peradaban kuno yang ingin Anda jelajahi dalam format video reel sinematik 9:16:"
+                    if user_lang == "id" else
+                    "🏛️ *Nusantara Time Machine — Cultural Documentary*\n\n"
+                    "Choose an ancient civilization to explore in a cinematic 9:16 vertical video reel:"
+                )
+                await update.message.reply_text(
+                    prompt_text,
+                    reply_markup=self._get_culture_keyboard(user_lang),
+                    parse_mode="Markdown"
+                )
+                return
+            payload["topic"] = " ".join(args)
         else:
             if args:
                 payload["name"] = args[0]
                 if len(args) > 1:
                     payload["theme"] = " ".join(args[1:])
+
+        # Apply saved narrator voice preference for story generation
+        if cmd == "story":
+            user = update.effective_user
+            if user:
+                saved_voice = self.get_user_voice(str(user.id))
+                if saved_voice:
+                    payload["voice_profile"] = saved_voice
 
         # Execute
         await self._execute_and_send_cartridge(update.message, cmd, payload)
@@ -1074,32 +1495,127 @@ class OmniForgeBot:
                     f"{t('start_title', lang)}\n\n"
                     f"{t('start_subtitle', lang)}\n\n"
                     f"{t('start_commands_header', lang)}\n"
+                    f"{t('start_cmd_clip', lang)}\n"
+                    f"{t('start_cmd_culture', lang)}\n"
                     f"{t('start_cmd_story', lang)}\n"
                     f"{t('start_cmd_morning', lang)}\n"
-                    f"{t('start_cmd_clip', lang)}\n"
                     f"{t('start_cmd_idea', lang)}\n\n"
                     f"{t('start_cmd_system', lang)}"
                 )
-                toggle_label = "🇬🇧 Switch to English" if lang == "id" else "🇮🇩 Ubah ke Bahasa Indonesia"
-                target_lang = "en" if lang == "id" else "id"
-                story_label = "🌙 Cerita Tidur Anak" if lang == "id" else "🌙 Bedtime Story"
-                morning_label = "☀️ Afirmasi Pagi" if lang == "id" else "☀️ Morning Boost"
-                prof_label = "👤 Profil Anak" if lang == "id" else "👤 Child Profile"
-
-                kb = InlineKeyboardMarkup([
-                    [
-                        InlineKeyboardButton(story_label, callback_data="wiz_menu_story"),
-                        InlineKeyboardButton(morning_label, callback_data="wiz_menu_morning")
-                    ],
-                    [
-                        InlineKeyboardButton(prof_label, callback_data="wiz_menu_profile"),
-                        InlineKeyboardButton(toggle_label, callback_data=f"set_lang:{target_lang}")
-                    ],
-                    [
-                        InlineKeyboardButton("🌐 Mission Control Portal", callback_data="wiz_menu_portal")
-                    ]
-                ])
+                kb = self._get_main_menu_keyboard(lang)
                 await query.edit_message_text(msg, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "wiz_menu_clip":
+                user_lang = self.resolve_user_language(update)
+                await query.edit_message_text(
+                    self._get_clip_guide_text(user_lang),
+                    reply_markup=self._get_clip_guide_keyboard(user_lang),
+                    parse_mode="Markdown"
+                )
+
+            elif prefix == "wiz_menu_guides":
+                user_lang = self.resolve_user_language(update)
+                await query.edit_message_text(
+                    self._get_guides_catalog_text(user_lang),
+                    reply_markup=self._get_guides_catalog_keyboard(user_lang),
+                    parse_mode="Markdown"
+                )
+
+            elif prefix == "guide_detail":
+                topic = parts[1]
+                user_lang = self.resolve_user_language(update)
+                guide_text = self._get_guide_detail_text(topic, user_lang)
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Kembali ke Panduan" if user_lang == "id" else "🔙 Back to Guides", callback_data="wiz_menu_guides")]
+                ])
+                await query.edit_message_text(guide_text, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "clip_guide":
+                sub = parts[1]
+                user_lang = self.resolve_user_language(update)
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Menu Clipper" if user_lang == "id" else "🔙 Clipper Menu", callback_data="wiz_menu_clip")]
+                ])
+                if sub == "custom_brief":
+                    txt = (
+                        "✍️ *Panduan Custom Campaign Brief*\n\n"
+                        "Gunakan brief khusus jika sponsor Whop atau Content Rewards memiliki aturan ketat.\n\n"
+                        "*Contoh:* \n"
+                        "`/clip <URL> | brief: Target topik hubungan asmara, dilarang klaim medis`\n\n"
+                        "Atau padukan dengan preset pemenang:\n"
+                        "`/clip <URL> habits | brief: Fokus pada 15-second hug rule`\n\n"
+                        "💡 *AI akan memfilter kandidat klip dan memilih segmen yang 100% selaras dengan brief Anda.*"
+                        if user_lang == "id" else
+                        "✍️ *Custom Campaign Brief Guide*\n\n"
+                        "Supply specific sponsor dos and don'ts from Whop.\n\n"
+                        "*Example:* \n"
+                        "`/clip <URL> | brief: Must focus on emotional relationships, no medical claims`\n\n"
+                        "Or combine with a winning preset:\n"
+                        "`/clip <URL> habits | brief: Focus on the 15-second hug rule`\n\n"
+                        "💡 *The AI ranks candidate segments strictly against your brief guidelines.*"
+                    )
+                else:
+                    txt = (
+                        "📋 *Contoh Perintah Cepat (Tinggal Salin)*\n\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ habits 3`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ minimal`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ | brief: Tips tidur nyenyak`"
+                        if user_lang == "id" else
+                        "📋 *Quick Command Templates (Copy & Paste)*\n\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ habits 3`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ minimal`\n"
+                        "• `/clip https://youtu.be/LlhTEttKcwQ | brief: Deep sleep tips`"
+                    )
+                await query.edit_message_text(txt, reply_markup=kb, parse_mode="Markdown")
+
+            elif prefix == "clip_preset":
+                preset_name = parts[1]
+                user = update.effective_user
+                uid = str(user.id) if user else "anon"
+                user_lang = self.resolve_user_language(update)
+
+                st = self.user_states.get(uid, {})
+                if st.get("state") == "clip_url_received" and st.get("url"):
+                    url = st["url"]
+                    self.user_states.pop(uid, None)
+                    prep_msg = (
+                        f"🎬 *Memulai Clipping dengan Preset:* `{preset_name}`\n⏳ Memproses video YouTube..."
+                        if user_lang == "id" else
+                        f"🎬 *Starting Clipping with Preset:* `{preset_name}`\n⏳ Processing YouTube video..."
+                    )
+                    await query.edit_message_text(prep_msg, parse_mode="Markdown")
+                    payload = {
+                        "url": url,
+                        "campaign": preset_name,
+                        "lang": user_lang
+                    }
+                    await self._execute_and_send_cartridge(
+                        target_message=query.message,
+                        cmd="clip",
+                        payload=payload,
+                        status_msg=query.message
+                    )
+                else:
+                    self.user_states[uid] = {
+                        "state": "clip_awaiting_url",
+                        "campaign": preset_name,
+                        "lang": user_lang
+                    }
+                    kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 Pilih Preset Lain" if user_lang == "id" else "🔙 Choose Another Preset", callback_data="wiz_menu_clip")]
+                    ])
+                    prompt = (
+                        f"🏆 *Preset Aktif:* `{preset_name}`\n\n"
+                        "👇 **Kirim atau tempelkan link video YouTube podcast Anda sekarang ke chat ini:**\n"
+                        "*(Contoh: https://youtu.be/...)*"
+                        if user_lang == "id" else
+                        f"🏆 *Active Preset:* `{preset_name}`\n\n"
+                        "👇 **Send or paste your YouTube podcast link now to this chat:**\n"
+                        "*(Example: https://youtu.be/...)*"
+                    )
+                    await query.edit_message_text(prompt, reply_markup=kb, parse_mode="Markdown")
 
             elif prefix == "wiz_menu_story":
                 await self.start_story_wizard(update, context)
@@ -1111,6 +1627,35 @@ class OmniForgeBot:
                     reply_markup=self._get_morning_keyboard(),
                     parse_mode="Markdown"
                 )
+            elif prefix == "wiz_menu_culture":
+                user_lang = self.resolve_user_language(update)
+                prompt_text = (
+                    "🏛️ *Mesin Waktu Nusantara — Dokumenter Budaya*\n\n"
+                    "Pilih peradaban kuno yang ingin Anda jelajahi dalam format video reel sinematik 9:16:"
+                    if user_lang == "id" else
+                    "🏛️ *Nusantara Time Machine — Cultural Documentary*\n\n"
+                    "Choose an ancient civilization to explore in a cinematic 9:16 vertical video reel:"
+                )
+                await query.edit_message_text(
+                    prompt_text,
+                    reply_markup=self._get_culture_keyboard(user_lang),
+                    parse_mode="Markdown"
+                )
+
+            elif prefix == "cult":
+                archetype = parts[1]
+                user_lang = self.resolve_user_language(update)
+                payload = {
+                    "topic": archetype,
+                    "lang": user_lang
+                }
+                await self._execute_and_send_cartridge(
+                    target_message=query.message,
+                    cmd="culture",
+                    payload=payload,
+                    status_msg=query.message
+                )
+
 
             elif prefix == "wiz_menu_portal":
                 user_lang = self.resolve_user_language(update)
@@ -1231,6 +1776,19 @@ class OmniForgeBot:
                     self._set_user_language(str(user.id), new_lang)
                 msg_key = "lang_switched_id" if new_lang == "id" else "lang_switched_en"
                 await query.edit_message_text(t(msg_key, new_lang), parse_mode="Markdown")
+
+            elif prefix == "set_voice":
+                pick = parts[1] if len(parts) > 1 else "auto"
+                user = update.effective_user
+                lang = self.resolve_user_language(update)
+                if user:
+                    self.set_user_voice(str(user.id), None if pick == "auto" else pick)
+                    current = self.get_user_voice(str(user.id))
+                else:
+                    current = None if pick == "auto" else pick
+                label = {"indonesian_female": "🌸 Ibu Gadis", "indonesian_male": "🦉 Ayah Ardi"}.get(current, "✨ Otomatis" if lang == "id" else "✨ Auto")
+                msg = f"🎙️ Suara cerita: *{label}*" if lang == "id" else f"🎙️ Story voice: *{label}*"
+                await query.edit_message_text(msg, parse_mode="Markdown")
 
             elif prefix == "wiz_lang":
                 lang = parts[1] if len(parts) > 1 else "id"
@@ -1358,7 +1916,14 @@ class OmniForgeBot:
         if not self.token:
             raise ValueError("TELEGRAM_BOT_TOKEN is not configured in .env or config.py")
 
-        self.app = Application.builder().token(self.token).build()
+        from telegram.request import HTTPXRequest
+        request = HTTPXRequest(
+            media_write_timeout=180.0,
+            read_timeout=60.0,
+            write_timeout=60.0,
+            connect_timeout=30.0,
+        )
+        self.app = Application.builder().token(self.token).request(request).build()
 
         # Core handlers
         self.app.add_handler(CommandHandler("start", self.start_command))
@@ -1367,17 +1932,18 @@ class OmniForgeBot:
         self.app.add_handler(CommandHandler("portal", self.portal_command))
         self.app.add_handler(CommandHandler("control", self.portal_command))
         self.app.add_handler(CommandHandler("lang", self.lang_command))
+        self.app.add_handler(CommandHandler("voice", self.voice_command))
+        self.app.add_handler(CommandHandler("suara", self.voice_command))
         self.app.add_handler(CommandHandler("reload", self.reload_command))
         self.app.add_handler(CommandHandler("idea", self.idea_command))
         self.app.add_handler(CommandHandler("profile", self.profile_command))
-        self.app.add_handler(CommandHandler("profil", self.profile_command))
 
         # Dynamic cartridge commands
         for cmd in self.cartridges.keys():
             self.app.add_handler(CommandHandler(cmd, self.handle_cartridge_command))
 
         # Indonesian Aliases
-        for alias in ("cerita", "afirmasi", "pagi", "klip"):
+        for alias in ("cerita", "afirmasi", "pagi", "klip", "budaya"):
             self.app.add_handler(CommandHandler(alias, self.handle_cartridge_command))
         self.app.add_handler(CommandHandler("ide", self.idea_command))
 
@@ -1411,6 +1977,9 @@ class OmniForgeBot:
             payload["lang"] = "id"
         elif cmd == "klip":
             cmd = "clip"
+        elif cmd == "budaya":
+            cmd = "culture"
+            payload["lang"] = "id"
 
         if "id" in [a.lower() for a in args]:
             payload["lang"] = "id"
@@ -1465,6 +2034,8 @@ class OmniForgeBot:
                 payload["style"] = args[1]
             if len(args) >= 3 and args[2].isdigit():
                 payload["max_clips"] = int(args[2])
+        elif cmd == "culture":
+            payload["topic"] = " ".join(args) if args else "majapahit"
         else:
             payload["name"] = args[0] if args else "Friend"
             payload["theme"] = " ".join(args[1:]) if len(args) > 1 else "courage"
@@ -1475,7 +2046,7 @@ class OmniForgeBot:
         """Starts the Telegram bot in polling mode."""
         app = self.build_application()
         logger.info(f"Starting OmniForge Telegram Bot with {len(self.cartridges)} cartridges...")
-        app.run_polling(drop_pending_updates=True)
+        app.run_polling(drop_pending_updates=False)
 
 
 if __name__ == "__main__":

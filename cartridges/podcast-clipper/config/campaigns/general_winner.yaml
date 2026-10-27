@@ -1,0 +1,16 @@
+name: "General Viral Winner"
+brief: "Select the most scroll-stopping 60-second peak moment with high audience retention."
+banner:
+  enabled: true
+  style: "pill"
+  text_color: "#FFFFFF"
+  bg_color: [18, 18, 22, 225]
+  border_color: [255, 235, 59, 180]
+  border_width: 2
+  y: 160
+ambience:
+  enabled: false
+logo:
+  enabled: false
+caption:
+  style: "hormozi"

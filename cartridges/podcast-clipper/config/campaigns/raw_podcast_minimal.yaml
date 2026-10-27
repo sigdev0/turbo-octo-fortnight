@@ -1,0 +1,10 @@
+name: "Raw Podcast Minimal"
+brief: "Select the most profound revelation, controversy, or high-tension moment with maximum retention."
+banner:
+  enabled: false
+ambience:
+  enabled: false
+logo:
+  enabled: false
+caption:
+  style: "hormozi"

@@ -33,7 +33,11 @@ class PodcastClipperCartridge(BaseCartridge):
         style: str,
         max_clips: int,
         preset: str,
-        name: str
+        name: str,
+        campaign: Optional[str] = None,
+        campaign_brief: Optional[str] = None,
+        target_topics: Optional[List[str]] = None,
+        campaign_profile: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Synchronous wrapper executed in background thread."""
         cwd_before = os.getcwd()
@@ -55,7 +59,11 @@ class PodcastClipperCartridge(BaseCartridge):
                 name=name,
                 style=style,
                 max_clips=max_clips,
-                preset=preset
+                preset=preset,
+                campaign=campaign,
+                campaign_brief=campaign_brief,
+                target_topics=target_topics,
+                campaign_profile=campaign_profile,
             )
             return res
         finally:
@@ -68,12 +76,16 @@ class PodcastClipperCartridge(BaseCartridge):
         if not url:
             return {
                 "status": "error",
-                "message": "Missing YouTube or podcast video URL. Usage: /clip <url>"
+                "message": "Missing YouTube or podcast video URL. Usage: /clip <url> [campaign]"
             }
 
         style = payload.get("style", "hormozi")
         max_clips = int(payload.get("max_clips", 3))
         preset = payload.get("preset", "shorts")
+        campaign = payload.get("campaign")
+        campaign_brief = payload.get("campaign_brief") or payload.get("brief")
+        target_topics = payload.get("target_topics")
+        campaign_profile = payload.get("campaign_profile")
 
         import hashlib
         name_slug = hashlib.md5(url.encode()).hexdigest()[:8]
@@ -89,24 +101,32 @@ class PodcastClipperCartridge(BaseCartridge):
                 style=style,
                 max_clips=max_clips,
                 preset=preset,
-                name=name_slug
+                name=name_slug,
+                campaign=campaign,
+                campaign_brief=campaign_brief,
+                target_topics=target_topics,
+                campaign_profile=campaign_profile,
             )
 
             made_clips = res.get("clips", [])
             output_files = [m["clip"] for m in made_clips if "clip" in m]
             dl_info = res.get("download", {})
             title = dl_info.get("title", f"Clip_{name_slug}")
+            camp_info = res.get("campaign", {})
 
             return {
                 "status": "success",
                 "title": title,
                 "output_file": output_files[0] if output_files else None,
                 "output_files": output_files,
+                "clips": made_clips,
+                "campaign": camp_info,
                 "metadata": {
                     "url": url,
                     "clips_count": len(output_files),
                     "style": style,
                     "preset": preset,
+                    "campaign": campaign or camp_info.get("name"),
                     "raw_result": made_clips
                 }
             }

@@ -14,7 +14,7 @@ BACKLOG_DIR = BASE_DIR / "backlog"
 DATA_DIR = BASE_DIR / "data"
 
 # Load .env from project root
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=True)
 
 # Ensure required directories exist
 for p in [MUSIC_DIR, TEMPLATES_DIR, OUTPUT_DIR, BACKLOG_DIR, DATA_DIR]:
@@ -29,6 +29,9 @@ ALLOWED_TELEGRAM_USERS = [u.strip() for u in _allowed_users_raw.split(",") if u.
 ROUTER_API_BASE = os.getenv("ROUTER_API_BASE", "https://api.openai.com/v1").rstrip("/")
 ROUTER_API_KEY = os.getenv("ROUTER_API_KEY", "")
 ROUTER_MODEL = os.getenv("ROUTER_MODEL", "claude-3-5-sonnet")
+
+# ElevenLabs Configuration
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 # Default Language ('id' for Bahasa Indonesia, 'en' for English)
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "id")
@@ -82,6 +85,33 @@ VOICE_PROFILES = {
         "rate": "+0%",
         "volume": "+0%",
         "pitch": "+0Hz"
+    },
+    "elevenlabs_maternal": {
+        "engine": "elevenlabs",
+        "voice_id": "EXAVITQu4vr4xnSDxMaL",  # Sarah (warm, maternal, reassuring)
+        "model_id": "eleven_multilingual_v2",
+        "stability": 0.45,
+        "similarity_boost": 0.85,
+        "style": 0.20,
+        "fallback": "indonesian_female"
+    },
+    "elevenlabs_storyteller": {
+        "engine": "elevenlabs",
+        "voice_id": "JBFqnCBsd6RMkjVDRZzb",  # George (warm, captivating storyteller)
+        "model_id": "eleven_multilingual_v2",
+        "stability": 0.50,
+        "similarity_boost": 0.80,
+        "style": 0.15,
+        "fallback": "bedtime_british"
+    },
+    "elevenlabs_deep_baritone": {
+        "engine": "elevenlabs",
+        "voice_id": "nPczCjzI2devNBz1zQrb",  # Brian (deep, resonant, comforting)
+        "model_id": "eleven_multilingual_v2",
+        "stability": 0.55,
+        "similarity_boost": 0.85,
+        "style": 0.10,
+        "fallback": "indonesian_male"
     }
 }
 

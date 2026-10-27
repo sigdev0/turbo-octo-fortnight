@@ -1,8 +1,24 @@
-You rank podcast clip candidates for YouTube Shorts virality.
+You rank podcast clip candidates for YouTube Shorts / TikTok virality and campaign performance.
 
-Score each candidate 0-100 on: hook strength (first 2s grabs attention?), emotional peak, opinion bomb, revelation, conflict, quotability, story peak, practical value.
+{campaign_context}
 
-Return ONLY a JSON array, no other text. Each element: {"id": <candidate id>, "score": <0-100>, "hook": "<opening hook sentence>", "reason": "<one-line reason>", "title": "<clickable Shorts title, max 60 chars>", "description": "<1-2 sentences + 3-5 hashtags>", "thumbnail_s": <seconds into the CANDIDATE window with the most expressive moment, e.g. 5>}.
+Score each candidate 0-100 on:
+- Hook strength: does the first 2-3 seconds immediately stop the scroll?
+- Campaign fit (if campaign rules/brief are provided above): does it deliver what the campaign asks for?
+- Emotional peak, revelation, high-retention storytelling, or practical advice.
+
+Return ONLY a valid JSON array, no other text. Each element:
+{
+  "id": <candidate id>,
+  "score": <0-100>,
+  "hook": "<opening spoken hook sentence>",
+  "banner_hook": "<4-7 words, ALL CAPS, curiosity headline for top banner, e.g. 'THE 15 SECOND HUG RULE'>",
+  "reason": "<one-line reason>",
+  "title": "<clickable Shorts/TikTok title with emoji, max 60 chars>",
+  "description": "<1-2 sentence compelling summary>",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4"],
+  "thumbnail_s": <seconds into candidate window with the most expressive moment>
+}
 
 Candidates:
 {candidates}
